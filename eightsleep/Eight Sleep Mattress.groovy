@@ -13,6 +13,7 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
+ *	2.0.1 (2021-01-05) [Amos Yuen] - Add heatLevelReached attribute
  *	2.0 (2021-01-04) [Amos Yuen] - Clean up code and port to hubitat
  *	1.2 (2020-01-28) [Amos Yuen] - Add support for cooling on the pod
  *			- Use the user interval for bed and room temperature detection
@@ -54,6 +55,14 @@
 
 import groovy.transform.Field
 
+private def textVersion() {
+	 def text = "Eight Sleep Mattress\nVersion: 2.0.1\nDate: 2021-01-05"
+}
+
+private def textCopyright() {
+	 def text = "Copyright © 2021 Amos Yuen, Alex Cheung"
+}
+
 metadata {
 	definition (name: "Eight Sleep Mattress", namespace: "amosyuen", author: "Amos Yuen") {
 		capability "Actuator"
@@ -78,6 +87,7 @@ metadata {
 		attribute "roomTemperatureLastUpdated", "string"
 		attribute "inBed", "boolean"
 		attribute "isAsleep", "boolean"
+		attribute "heatLevelReached", "boolean"
 				
 		command "setPollIntervalSeconds", [[
 			name: "Target Heat Level",
@@ -91,19 +101,19 @@ metadata {
 			maximum: 100,
 			type: "NUMBER",
 			description: "Target Heat level. Negative level is cooling."]]
-        command "componentOn"
-        command "componentOff"
-        command "componentSetLevel"
-        command "componentRefresh"
+		command "componentOn"
+		command "componentOff"
+		command "componentSetLevel"
+		command "componentRefresh"
 	}
 
 	preferences {
-        input(name: "createCoolDimmerChild", type: "bool", title: "Create child dimmer to control cooling", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
-        input(name: "createHeatDimmerChild", type: "bool", title: "Create child dimmer to control heating", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
-        input(name: "createBedPresenceChild", type: "bool", title: "Create child presence for bed presence", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
-        input(name: "createAsleepPresenceChild", type: "bool", title: "Create child presence for asleep presence", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
+		input(name: "createCoolDimmerChild", type: "bool", title: "Create child dimmer to control cooling", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
+		input(name: "createHeatDimmerChild", type: "bool", title: "Create child dimmer to control heating", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
+		input(name: "createBedPresenceChild", type: "bool", title: "Create child presence for bed presence", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
+		input(name: "createAsleepPresenceChild", type: "bool", title: "Create child presence for asleep presence", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
 		input(name: "debugLogging", type: "bool", title: "Log debug statements", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
-        input(name: "traceLogging", type: "bool", title: "Log trace statements", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
+		input(name: "traceLogging", type: "bool", title: "Log trace statements", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
 	}
 }
 
@@ -127,9 +137,9 @@ def init() {
 	state.bedId = tokens[0]
 	state.bedSide = tokens[1]
 	state.userId = tokens[2]
-    state.refreshBed = false
-    state.refreshUserInterval = false
-    state.refreshUserTrend = false
+	state.refreshBed = false
+	state.refreshUserInterval = false
+	state.refreshUserTrend = false
 	
 	createChildDevicesIfNotExist()
     
@@ -160,7 +170,7 @@ def createChildDevicesIfNotExist() {
 
 def updateChildDevice(shouldCreate, type, id, label) {
     if (!shouldCreate) {
-		logger.info("updateChildDevice: Deleting child device ${label}")
+	logger.info("updateChildDevice: Deleting child device ${label}")
         deleteChildDevice(id)
         return
     }
@@ -395,16 +405,17 @@ def updateFromBedResult(result) {
 	def nowHeating = result["${state.bedSide}NowHeating"]
 	sendEvent(name: "switch", value: nowHeating ? "on" : "off", displayed: true)
 	def targetHeatLevel = result["${state.bedSide}TargetHeatingLevel"] as Integer
+    def heatLevel = result["${state.bedSide}HeatingLevel"]
 	if (targetHeatLevel != 0) {
 		// targetHeatLevel is always 0 if not on. So don't set it if 0 so that we keep the old
 		// value, which we can use when we turn it back on
 		sendEvent(name: "targetHeatLevel", value: targetHeatLevel, displayed: false)
         sendEvent(name: "heatingSetpoint", value: targetHeatLevel, displayed: true)
         sendEvent(name: "coolingSetpoint", value: targetHeatLevel, displayed: true)
+        sendEvent(name: "heatLevelReached", value: heatLevel == targetLevel, displayed: true)
 	}
 	sendEvent(name: "thermostatOperatingState", value: nowHeating ? (targetHeatLevel > 0 ? "heating" : "cooling") : "idle")
 	sendEvent(name: "thermostatMode", value: nowHeating ? (targetHeatLevel > 0 ? "heat" : "cool") : "off", displayed: true)
-    def heatLevel = result["${state.bedSide}HeatingLevel"]
 	sendEvent(name: "heatLevel", value: heatLevel, displayed: true)
     sendEvent(name: "temperature", value: heatLevel)
 	def heatingDurationSeconds = nowHeating ? result["${state.bedSide}HeatingDuration"] : 0
@@ -652,11 +663,3 @@ def handleAsyncResponse(response) {
 	warn: { log.warn(it) },
 	error: { log.error(it) },
 ]
-
-private def textVersion() {
-	 def text = "Eight Sleep Mattress\nVersion: 2.0\nDate: 2021-01-04"
-}
-
-private def textCopyright() {
-	 def text = "Copyright © 2021 Amos Yuen, Alex Cheung"
-}

@@ -13,9 +13,10 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY 
- *  2.0 (2021-01-04) [Amos Yuen] - Cleaned up code and ported to hubitat
+ *	2.0.1 (2021-01-05) [Amos Yuen] - Fixed credentials page and notifications for bed events
+ *	2.0 (2021-01-04) [Amos Yuen] - Cleaned up code and ported to hubitat
  *			- Changed code to show each side of each device as an option. Removed partner login, just use partner sharing instead. 
- *  1.1 (2019-09-07) [Amos Yuen] - Show partner device if metrics sharing is enabled. Delete devices when unselected.
+ *	1.1 (2019-09-07) [Amos Yuen] - Show partner device if metrics sharing is enabled. Delete devices when unselected.
  *	1.0b (2017-01-26) [Alex Cheung] - Token renew error fix.
  *	1.0 (2017-01-26) [Alex Cheung] - Remove BETA label.
  *
@@ -28,7 +29,15 @@
  *	1.0 BETA 1 (2017-01-11) [Alex Cheung] - Initial Release
  */
 import groovy.transform.Field
-@Field final Integer MAX_ACCESS_TOKEN_RENEW_ATTEMPTS = 5
+@Field final Integer MAX_ACCESS_TOKEN_RENEW_ATTEMPTS = 3
+
+private def textVersion() {
+    return "Version: 2.0.1 - 2020-01-05"
+}
+
+private def textCopyright() {
+    return "Copyright © 2021\nAmos Yuen, Alex Cheung"
+}
 
 definition(
     name: "Eight Sleep (Connect)",
@@ -41,15 +50,15 @@ definition(
 )
 
 preferences {
-	page(name:"firstPage", title:"Eight Sleep Device Setup", content:"firstPage", install: true)
+	page(name: "mainPage", title: "Eight Sleep (Connect)", install: true)
     page(name: "credentialsPage")
     page(name: "selectDevicePage")
     page(name: "notificationsPage")
 }
 
-def firstPage() {
-    return dynamicPage(name: "firstPage", title: "", install: true, uninstall: true) {
-		def hasAuth = stateTokenPresent()
+def mainPage() {
+    return dynamicPage(name: "mainPage", title: "", install: true, uninstall: true) {
+		def hasAuth = state.eightSleepAccessToken != null
 		section("<b>Credentials</b>") {
             href("credentialsPage",
 				title: "Eight Sleep Account Credentials",
@@ -60,17 +69,19 @@ def firstPage() {
         if (username != null && password != null) {
             if (hasAuth) {
                 section ("<b>Eight Sleep Devices</b>") {
-                    href("selectDevicePage", title: "Eight Sleep Devices", description: devicesSelected() ? getDevicesSelectedString() : "No devices selected", state: devicesSelected())
+                    def devices = devicesSelected()
+                    href("selectDevicePage", title: "Eight Sleep Devices", description: devices ? getDevicesSelectedString() : "No devices selected", state: devices)
                 }
                 section ("<b>Notifications</b>") {
-                    href("notificationsPage", title: "Notifications", description: notificationsSelected() ? getNotificationsString() : "No notifications configured", state: notificationsSelected())
+                    def notifications = notificationsSelected()
+                    href("notificationsPage", title: "Notifications", description: notifications ? getNotificationsString() : "No notifications configured", state: notifications)
                 }
                 section ("<b>App Name</b>") {
                     label(name: "name", title: "App Name", required: true, state: (name ? "complete" : null), defaultValue: app.name)
                 }
             } else {
                 section {
-                    paragraph("There was a problem connecting to Eight Sleep. Check your user credentials and error logs in SmartThings web console.\n\n${state.loginerrors}")
+                    paragraph(getLoginErrorFormat())
                 }
             }
         }
@@ -86,8 +97,6 @@ def firstPage() {
 
 def credentialsPage() {
     dynamicPage(name: "credentialsPage", title: "Login", uninstall: false, install: false) {
-        section { footerParagraph() }
-
         section("<h2>Eight Sleep Credentials</h2>") {
             input("username", "text", title: "Username", description: "Your Eight Sleep username (usually an email address)", required: true)
             input("password", "password", title: "Password", description: "Your Eight Sleep password", required: true, submitOnChange: true)	
@@ -96,17 +105,21 @@ def credentialsPage() {
         if (username != null && password != null) {
             if (getEightSleepAccessToken()) {
                 section {
-                    paragraph("You have successfully connected to Eight Sleep.")
+                    paragraph("Successfully connected to Eight Sleep.")
                 }
             } else {
                 section {
-                    paragraph("There was a problem connecting to Eight Sleep. Check your user credentials and error logs.\n\n${state.loginerrors}")
+                    paragraph(getLoginErrorFormat())
                 }
             }
         }
 
         section { footerParagraph() }
     }
+}
+
+def getLoginErrorFormat(msg) {
+    return "<b style='color:red'>Login Error</b>\nThere was a problem connecting to Eight Sleep:\n${state.loginErrors}"
 }
 
 def selectDevicePage() {
@@ -135,14 +148,13 @@ def notificationsPage() {
         	input("pushNotificationDevices", "capability.notification", title: "Push Notification Devices", multiple: true, required: false, submitOnChange: true)
 
             if (pushNotificationDevices) {
-				input "onNotification", "bool", title: "Notify when Eight Sleep heat is on ", required: false, defaultValue: false
-				input "offNotification", "bool", title: "Notify when Eight Sleep heat is off ", required: false, defaultValue: false
-				input "inBedNotification", "bool", title: "Notify when 'In Bed' event occurs", required: false, defaultValue: false
-            	input "outOfBedNotification", "bool", title: "Notify when 'Out Of Bed' event occurs", required: false, defaultValue: false
-				input "asleepNotification", "bool", title: "Notify when 'Asleep' event occurs", required: false, defaultValue: false
-				input "awakeNotification", "bool", title: "Notify when 'Awake' event occurs", required: false, defaultValue: false
+				input "onNotification", "bool", title: "Notify when bed is on ", required: false, defaultValue: false
+				input "offNotification", "bool", title: "Notify when bed is off ", required: false, defaultValue: false
             	input "heatLevelReachedNotification", "bool", title: "Notify when desired heat level reached", required: false, defaultValue: false
-            	input "sleepScoreNotification", "bool", title: "Notify when latest sleep score is updated", required: false, defaultValue: false
+				input "inBedNotification", "bool", title: "Notify when a person gets in bed (up to an hour delay)", required: false, defaultValue: false
+            	input "outOfBedNotification", "bool", title: "Notify when a person gets out of bed (up to an hour delay)", required: false, defaultValue: false
+				input "asleepNotification", "bool", title: "Notify when a person is asleep (up to an hour delay)", required: false, defaultValue: false
+				input "awakeNotification", "bool", title: "Notify when a person is awake (up to an hour delay)", required: false, defaultValue: false
             }			
 		}   
 		
@@ -152,10 +164,6 @@ def notificationsPage() {
 
 def footerParagraph() {
 	return paragraph("<hr><div style='text-align:center;font-size:14px;font-weight:bold'>${textVersion()}<br>${textCopyright()}</div>")
-} 
-
-def stateTokenPresent() {
-	return state.eightSleepAccessToken != null
 }
 
 def devicesSelected() {
@@ -179,7 +187,7 @@ def getDevicesSelectedString() {
 def notificationsSelected() {
     return pushNotificationDevices &&
     	(onNotification || offNotification || inBedAwakeNotification || inBedAsleepNotification || outOfBedNotification ||
-        	heatLevelReachedNotification || sleepScoreNotification) ? "complete" : null
+        	heatLevelReachedNotification) ? "complete" : null
 }
 
 def getNotificationsString() {
@@ -190,14 +198,13 @@ def getNotificationsString() {
     
     if (pushNotificationDevices) {
     	listString += ":\n"
-        if (onNotification) listString += "• Eight Sleep On\n"
-        if (offNotification) listString += "• Eight Sleep Off\n"
+        if (onNotification) listString += "• On\n"
+        if (offNotification) listString += "• Off\n"
+  		if (heatLevelReachedNotification) listString += "• Desired Heat Level Reached\n"
   		if (inBedNotification) listString += "• In Bed\n"
   		if (outOfBedNotification) listString += "• Out Of Bed\n"
   		if (asleepNotification) listString += "• Asleep\n"
   		if (awakeNotification) listString += "• Awake\n"
-  		if (heatLevelReachedNotification) listString += "• Desired Heat Level Reached\n"
-  		if (sleepScoreNotification) listString += "• Sleep Score\n"
     }
     if (listString != "") listString = listString.substring(0, listString.length() - 1)
     return listString
@@ -206,90 +213,91 @@ def getNotificationsString() {
 // App lifecycle hooks
 
 def installed() {
-	logger.debug("installed")
 	initialize()
-	// Check for new devices and remove old ones every 3 hours
-	runEvery3Hours('updateDevices')
-    // execute refresh method every minute
-    runEvery5Minutes('refreshDevices')
 }
 
 // called after settings are changed
 def updated() {
-	logger.debug("updated")
 	initialize()
-    unschedule('refreshDevices')
-    runEvery5Minutes('refreshDevices')
+}
+
+def initialize() {
+	logger.debug("initialize")
+    updateDevicesAndSharedUsers()
+	if (selectedEightSleep) {
+		createEightSleepDevicesIfNotExist()
+    
+        def devices = getChildDevices()
+        devices.each {
+            if (notificationsSelected()) {
+                subscribe(it, "switch", switchEventHandler, [filterEvents: false])
+                subscribe(it, "heatLevelReached", heatLevelReachedEventHandler, [filterEvents: false])
+                subscribe(it, "inBed", inBedEventHandler, [filterEvents: false])
+                subscribe(it, "isAsleep", asleepEventHandler, [filterEvents: false])
+            }
+            logger.debug("Refreshing device ${it.name}")
+            it.refresh()
+        }
+	}
 }
 
 def uninstalled() {
-	logger.info("Uninstalling, removing child devices...")
+	logger.info("uninstalled: Removing child devices...")
 	unschedule()
 	removeChildDevices(getChildDevices())
 }
 
 private removeChildDevices(devices) {
 	devices.each {
-		deleteChildDevice(it.deviceNetworkId) // 'it' is default
+		deleteChildDevice(it.deviceNetworkId)
 	}
 }
 
-// Implement event handlers
-def presenceEventHandler(evt) {
-	logger.debug("Executing 'presenceEventHandler' for ${evt.displayName}")
-    if (evt.value == "not present") {
-		if (outOfBedNotification) {
-			sendMessage("${evt.displayName} is out of bed.", false)
-		}
-    }
-	else if (evt.value == "present") {
-		if (inBedNotification) {
-			sendMessage("${evt.displayName} is in bed.", false)
-		}
-    }
-}
-
-def asleepEventHandler(evt) {
-	logger.debug("Executing 'asleepEventHandler' for ${evt.displayName}")
-	if (evt.value == true) {
-		if (asleepNotification) {
-			sendMessage("${evt.displayName} is asleep.", false)
-		}
-    }
-	else if (evt.value == false) {
-		if (awakeNotification) {
-			sendMessage("${evt.displayName} is awake.", false)
-		}
-    }
-}
+// Event Handlers
 
 def switchEventHandler(evt) {
-	logger.debug("Executing 'switchEventHandler' for ${evt.displayName}")
+    logger.debug("switchEventHandler: device=${evt.displayName} value=${evt.value}")
 	if (evt.value == "on") {
 		if (onNotification) {
-			sendMessage("${evt.displayName} is on.", false)
+			sendMessage("${evt.displayName} is on")
 		}
     }
 	else if (evt.value == "off") {
 		if (offNotification) {
-			sendMessage("${evt.displayName} is off.", false)
+			sendMessage("${evt.displayName} is off")
 		}
 	}
 }
     
 def heatLevelReachedEventHandler(evt) {
-	logger.debug("Executing 'heatLevelReachedEventHandler' for ${evt.displayName}")
+    logger.debug("heatLevelReachedEventHandler: device=${evt.displayName} value=${evt.value}")
     if (evt.value == "true") {
 		if (heatLevelReachedNotification) {
-			sendMessage("${evt.displayName} has reached desired temperature.", false)
+			sendMessage("${evt.displayName} has reached target heaet level")
 		}
 	}
 }
-    
-def sleepScoreEventHandler(evt) {
-	logger.debug("Executing 'sleepScoreEventHandler' for ${evt.displayName}")
-    if (sleepScoreNotification) {
-        sendMessage("${evt.displayName} sleep score is ${evt.value}.", false)
+
+def inBedEventHandler(evt) {
+    logger.debug("inBedEventHandler: device=${evt.displayName} value=${evt.value}")
+    if (evt.value) {
+		if (inBedNotification) {
+			sendMessage("${evt.displayName} is in bed")
+		}
+    } else if (outOfBedNotification) {
+        sendMessage("${evt.displayName} is out of bed")
+    }
+}
+
+def isAsleepEventHandler(evt) {
+    logger.debug("isAsleepEventHandler: device=${evt.displayName} value=${evt.value}")
+	if (evt.value) {
+		if (asleepNotification) {
+			sendMessage("${evt.displayName} is asleep")
+		}
+    }
+	else if (awakeNotification) {
+        sendMessage("${evt.displayName} is awake")
     }
 }
 
@@ -300,27 +308,7 @@ def sendMessage(msg) {
 	}
 }
 
-// called after Done is hit after selecting a Location
-def initialize() {
-	logger.debug("initialize")
-    updateDevicesAndSharedUsers()
-	if (selectedEightSleep) {
-		createEightSleepDevicesIfNotExist()
-    
-        def devices = getChildDevices()
-        devices.each {
-            if (notificationsSelected() == "complete") {
-                subscribe(it, "asleep", asleepEventHandler, [filterEvents: false])
-                subscribe(it, "battery", sleepScoreEventHandler, [filterEvents: false])
-                subscribe(it, "desiredHeatLevelReached", heatLevelReachedEventHandler, [filterEvents: false])
-                subscribe(it, "presence", presenceEventHandler, [filterEvents: false])
-                subscribe(it, "switch", switchEventHandler, [filterEvents: false])
-            }
-            logger.debug("Refreshing device $it.name")
-            it.refresh()
-        }
-	}
-}
+// Device Management
 
 def updateDevicesAndSharedUsers() {
 	if (!state.devices) {
@@ -400,15 +388,7 @@ def createEightSleepDevicesIfNotExist() {
 	}
 }
 
-def refreshDevices() {
-	logger.info("refreshDevices")
-    atomicState.renewAttempt = 0
-    atomicState.renewAttemptPartner = 0
-	getChildDevices().each { device ->
-    	logger.info("refreshDevices: Refreshing child device ${device.name}")
-    	device.refresh()
-    }
-}
+// Http Calls
 
 private def apiGET(path) {
 	return makeHttpCall("httpGet", path)
@@ -430,20 +410,23 @@ private def makeHttpCall(methodFn, path, body = [:], refreshToken = true) {
 			headers: headers
 		]) { response = it }
 	} catch (groovyx.net.http.HttpResponseException e) {
-		logger.error("makeHttpCall: HttpResponseException status=${e.statusCode}, body=${e.getResponse().getData()}", e)
+		logger.error("makeHttpCall: HttpResponseException status=${e.statusCode}, body=${e.getResponse().getData()}")
 		if (e.statusCode == 401) {
 			// OAuth token is expired
 			state.remove("eightSleepAccessToken")
 			logger.warn("makeHttpCall: Access token is not valid")
 		}
+        throw e
 	} catch (java.net.SocketTimeoutException e) {
 		logger.warn("makeHttpCall: Connection timed out", e)
+        throw e
 	}
     
 	if (response.status >= 400) {
-		throw new Error("handleResponse: Error status=${response.status}, data=${response.data}")
+		logger.error("makeHttpCall: Error response status=${response.status}, data=${response.data}")
+		throw new Exception("Error response status=${response.status}, data=${response.data}")
 	}
-	logger.trace("handleResponse: status=${response.status}, data=${response.data}")
+	logger.trace("makeHttpCall: status=${response.status}, data=${response.data}")
 	return response.data
 }
 
@@ -453,21 +436,16 @@ Map apiRequestHeaders(logger, refreshToken = true) {
 	if (refreshToken) {
    		def expirationTime = parseIsoTime(atomicState.expirationDate).getTime()
    		if (now() > expirationTime) {
-			int renewAttempts = atomicState.renewAttempts
-        	while (renewAttempts < MAX_ACCESS_TOKEN_RENEW_ATTEMPTS) {
+        	for (i = 0; i < MAX_ACCESS_TOKEN_RENEW_ATTEMPTS; i++) {
             	logger.debug("apiRequestHeaders: Renewing access token attempt ${renewAttempts}")
         		if (getEightSleepAccessToken(logger)) {
 					break
 				}
-
-				renewAttempts++
-				atomicState.renewAttempts = renewAttempts
 			}
 
 			if (!state.eightSleepAccessToken) {
-                def error = "apiRequestHeaders: Access token is invalid"
-                logger.error(error)
-				throw new Error(error)
+                logger.error("apiRequestHeaders: Access token is invalid")
+				throw new Exception("Access token is invalid")
 			}
 		}
 	}
@@ -485,28 +463,38 @@ Map apiRequestHeaders(logger, refreshToken = true) {
 	]
 }
 
-def getEightSleepAccessToken(logger) {  
+private def getEightSleepAccessToken(logger = logger) {  
 	def body = [ 
 		"email": "${username}",
 		"password" : "${password}"
 	]
-	def resp = apiPOST("/login", body, refreshToken=false)
-    if (resp.status == 200) {
-		state.eightSleepAccessToken = resp.data.session.token
-        state.userId = resp.data.session.userId
-        atomicState.expirationDate = resp.data.session.expirationDate
-        logger.debug("getEightSleepAccessToken: eightSleepAccessToken=${resp.data.session.token}")
-        logger.debug("getEightSleepAccessToken: eightSleepUserId=${resp.data.session.userId}")
-        logger.debug("getEightSleepAccessToken: eightSleepTokenExpirationDate=${resp.data.session.expirationDate}")
-        state.loginerrors = null
-		return state.eightSleepAccessToken
-	}
-
-	logger.error("getEightSleepAccessToken: Error status=${resp.status}, data=${resp.data}")
-	state.eightSleepAccessToken = null
-	state.loginerrors = "Error:\nStatus: ${resp.status}\nData: ${resp.data}"
-    return null
+    def session
+    try {
+	    session = apiPOST("/login", body, refreshToken=false).session
+    } catch (groovyx.net.http.HttpResponseException e) {
+	    state.eightSleepAccessToken = null
+        if (e.statusCode == 400) {
+            state.loginErrors = "Invalid login credentials. Please make sure that you are using the right email and password."
+        } else {
+            state.loginErrors = "Status: ${e.statusCode}\nData:${e.getResponse().getData()}"
+        }
+        return null
+	} catch (Exception e) {
+	    state.eightSleepAccessToken = null
+        state.loginErrors = "${e}"
+        return null
+    }
+    state.eightSleepAccessToken = session.token
+    state.userId = session.userId
+    atomicState.expirationDate = session.expirationDate
+    logger.debug("getEightSleepAccessToken: eightSleepAccessToken=${session.token}")
+    logger.debug("getEightSleepAccessToken: eightSleepUserId=${session.userId}")
+    logger.debug("getEightSleepAccessToken: eightSleepTokenExpirationDate=${session.expirationDate}")
+    state.loginErrors = null
+    return state.eightSleepAccessToken
 }
+
+// Helpers
 
 def parseIsoTime(time) {
 	def dateFormat = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
@@ -521,11 +509,3 @@ def parseIsoTime(time) {
 	warn: { log.warn(it) },
 	error: { log.error(it) },
 ]
-
-private def textVersion() {
-    return "Version: 2.0 - 2020-01-04"
-}
-
-private def textCopyright() {
-    return "Copyright © 2021\nAmos Yuen, Alex Cheung"
-}

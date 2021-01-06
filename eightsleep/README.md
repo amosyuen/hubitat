@@ -45,12 +45,12 @@ Recommended integration with Google Home, is to use hubitat [Google Home Communi
 * `Device type`: `Thermostat`
 * `Google Home device type`: `Thermostat`
 * `Device traits`
-    * `Temperature Setting`
-        * Set supported modes to `Off`, `Heat`, and `Cool` (only add cool if your mattress supports it)
-        * Set `Minimum Set Point` to `-100` if cooling supported otherwise set it to `0`
-        * Set `Maximum Set Point` to `100`
-    * `On/Off`
-        * Use default settings
+	* `Temperature Setting`
+		* Set supported modes to `Off`, `Heat`, and `Cool` (only add cool if your mattress supports it)
+		* Set `Minimum Set Point` to `-100` if cooling supported otherwise set it to `0`
+		* Set `Maximum Set Point` to `100`
+	* `On/Off`
+		* Use default settings
 
 ### Interactions
 

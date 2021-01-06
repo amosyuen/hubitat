@@ -1,30 +1,30 @@
 {
-  "packageName": "Eight Sleep (Connect)",
-  "author": "Amos Yuen",
-  "version": "2.0.2",
-  "minimumHEVersion": "0.0",
-  "dateReleased": "2021-01-05",
-  "documentationLink": "https://github.com/amosyuen/hubitat/blob/main/eightsleep/README.md",
-  "apps": [
-    {
-      "id": "481e7fe5-4d74-4886-a916-85d6fe1622b7",
-      "name": "Eight Sleep (Connect)",
-      "namespace": "amosyuen",
-      "location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/eightsleep/Eight%20Sleep%20Connect.groovy",
-      "required": true,
-      "oauth": false,
-      "primary": true,
-      "version": "2.0.1"
-    }
-  ],
-  "drivers": [
-    {
-      "id": "b4e1430a-1a47-4172-892f-c7d737541544",
-      "name": "Eight Sleep Mattress",
-      "namespace": "amosyuen",
-      "location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/eightsleep/Eight%20Sleep%20Mattress.groovy",
-      "required": true,
-      "version": "2.0.2"
-    }
-  ]
+	"packageName": "Eight Sleep (Connect)",
+	"author": "Amos Yuen",
+	"version": "2.0.2",
+	"minimumHEVersion": "0.0",
+	"dateReleased": "2021-01-05",
+	"documentationLink": "https://github.com/amosyuen/hubitat/blob/main/eightsleep/README.md",
+	"apps": [
+		{
+			"id": "481e7fe5-4d74-4886-a916-85d6fe1622b7",
+			"name": "Eight Sleep (Connect)",
+			"namespace": "amosyuen",
+			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/eightsleep/Eight%20Sleep%20Connect.groovy",
+			"required": true,
+			"oauth": false,
+			"primary": true,
+			"version": "2.0.1"
+		}
+	],
+	"drivers": [
+		{
+			"id": "b4e1430a-1a47-4172-892f-c7d737541544",
+			"name": "Eight Sleep Mattress",
+			"namespace": "amosyuen",
+			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/eightsleep/Eight%20Sleep%20Mattress.groovy",
+			"required": true,
+			"version": "2.0.2"
+		}
+	]
 }

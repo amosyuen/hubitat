@@ -1,19 +1,19 @@
 {
-  "author": "Amos Yuen",
-  "gitHubUrl": "https://github.com/amosyuen/hubitat",
-  "payPalUrl": "https://paypal.me/amosyuen",
-  "packages": [
+	"author": "Amos Yuen",
+	"gitHubUrl": "https://github.com/amosyuen/hubitat",
+	"payPalUrl": "https://paypal.me/amosyuen",
+	"packages": [
 		{
 			"name": "Eight Sleep (Connect)",
 			"category": "Integrations",
 			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/eightsleep/packageManifest.json",
-      "description": "Connect your Eight Sleep Mattress",
-      "tags": [
-        "Climate Control",
-        "Misc. Devices",
-        "Presence & Location",
-        "Sleep"
-      ]
+			"description": "Connect your Eight Sleep Mattress",
+			"tags": [
+				"Climate Control",
+				"Misc. Devices",
+				"Presence & Location",
+				"Sleep"
+			]
 		}
 	]
 }

@@ -13,6 +13,7 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
+ *	2.0.2 (2021-01-05) [Amos Yuen] - Remove stray schedule call and add missing thermostat methods
  *	2.0.1 (2021-01-05) [Amos Yuen] - Add heatLevelReached attribute
  *	2.0 (2021-01-04) [Amos Yuen] - Clean up code and port to hubitat
  *	1.2 (2020-01-28) [Amos Yuen] - Add support for cooling on the pod
@@ -56,7 +57,7 @@
 import groovy.transform.Field
 
 private def textVersion() {
-	 def text = "Eight Sleep Mattress\nVersion: 2.0.1\nDate: 2021-01-05"
+	 def text = "Eight Sleep Mattress\nVersion: 2.0.2\nDate: 2021-01-05"
 }
 
 private def textCopyright() {
@@ -72,9 +73,12 @@ metadata {
 		capability "Refresh"
 		capability "Sensor"
 		capability "Switch"
-		capability "Thermostat Mode"
+		capability "Thermostat"
+		capability "Thermostat Fan Mode"
 		capability "Thermostat Cooling Setpoint"
 		capability "Thermostat Heating Setpoint"
+		capability "Thermostat Mode"
+		capability "Thermostat Operating State"
 		capability "Temperature Measurement"
 				
 		attribute "pollIntervalSeconds", "number"
@@ -101,19 +105,19 @@ metadata {
 			maximum: 100,
 			type: "NUMBER",
 			description: "Target Heat level. Negative level is cooling."]]
-		command "componentOn"
-		command "componentOff"
-		command "componentSetLevel"
-		command "componentRefresh"
+        command "componentOn"
+        command "componentOff"
+        command "componentSetLevel"
+        command "componentRefresh"
 	}
 
 	preferences {
-		input(name: "createCoolDimmerChild", type: "bool", title: "Create child dimmer to control cooling", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
-		input(name: "createHeatDimmerChild", type: "bool", title: "Create child dimmer to control heating", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
-		input(name: "createBedPresenceChild", type: "bool", title: "Create child presence for bed presence", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
-		input(name: "createAsleepPresenceChild", type: "bool", title: "Create child presence for asleep presence", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
+        input(name: "createCoolDimmerChild", type: "bool", title: "Create child dimmer to control cooling", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
+        input(name: "createHeatDimmerChild", type: "bool", title: "Create child dimmer to control heating", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
+        input(name: "createBedPresenceChild", type: "bool", title: "Create child presence for bed presence", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
+        input(name: "createAsleepPresenceChild", type: "bool", title: "Create child presence for asleep presence", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
 		input(name: "debugLogging", type: "bool", title: "Log debug statements", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
-		input(name: "traceLogging", type: "bool", title: "Log trace statements", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
+        input(name: "traceLogging", type: "bool", title: "Log trace statements", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
 	}
 }
 
@@ -137,21 +141,20 @@ def init() {
 	state.bedId = tokens[0]
 	state.bedSide = tokens[1]
 	state.userId = tokens[2]
-	state.refreshBed = false
-	state.refreshUserInterval = false
-	state.refreshUserTrend = false
 	
 	createChildDevicesIfNotExist()
     
 	if (device.currentPollIntervalSeconds == null) {
 		setPollIntervalSeconds(300)
 	}
-	sendEvent(name: "coolingSetpointRange", value: [-100, 100])
-	sendEvent(name: "heatingSetpointRange", value: [-100, 100])
+    if (device.currentTargetHeatLevel == null) {
+        sendEvent(name: "targetHeatLevel", value: 10, displayed: false)
+    }
+    
 	sendEvent(name: "supportedThermostatModes", value: ["cool", "heat", "off"])
+	sendEvent(name: "supportedThermostatFanModes", value: [])
+	sendEvent(name: "thermostatFanMode", value: "auto")
 	sendEvent(name: "version", value: textVersion(), displayed: false)
-
-	schedule()
 	
 	refresh()
 }
@@ -169,14 +172,14 @@ def createChildDevicesIfNotExist() {
 }
 
 def updateChildDevice(shouldCreate, type, id, label) {
-    if (!shouldCreate) {
-	logger.info("updateChildDevice: Deleting child device ${label}")
-        deleteChildDevice(id)
-        return
-    }
-    
 	def child = getChildDevice(id)
-    if (!child) {
+    
+    if (child) {
+        if (!shouldCreate) {
+    		logger.info("updateChildDevice: Deleting child device ${label}")
+            deleteChildDevice(id)
+        }
+    } else if (shouldCreate) {
 		logger.info("updateChildDevice: Creating child device ${label}")
 		addChildDevice("hubitat", type, id, 
 				[
@@ -221,9 +224,9 @@ def componentOn(device) {
     logger.debug("componentOn: device=${device}")
 	on()
     if (device.deviceNetworkId == getChildHeatId()) {
-		setTargetHeatLevel(Math.max(10, device.currentTargetHeatLevel))
+		setTargetHeatLevel(Math.max(10, device.currentTargetHeatLevel as Integer))
 	} else {
-		setTargetHeatLevel(Math.min(-10, device.currentTargetHeatLevel))
+		setTargetHeatLevel(Math.min(-10, device.currentTargetHeatLevel as Integer))
 	}
 }
 
@@ -264,6 +267,10 @@ def heat() {
     setTargetHeatLevel(Math.max(10, device.currentTargetHeatLevel as Integer))
 }
 
+def emergencyHeat() {
+	logger.warn("emergencyHeat() is unsupported")
+}
+
 def setThermostatMode(mode) {
 	logger.debug("setThermostatMode: mode=${mode}")
     switch (mode) {
@@ -296,8 +303,28 @@ def setHeatingSetpoint(setpoint) {
     setTargetHeatLevel(setpoint)
 }
 
+def fanAuto() {
+	logger.warn("fanAuto() is unsupported")
+}
+
+def fanCirculate() {
+	logger.warn("fanCirculate() is unsupported")
+}
+
+def fanOn() {
+	logger.warn("fanOn() is unsupported")
+}
+
+def setThermostatFanMode(mode) {
+	logger.warn("setThermostateFanMode() is unsupported")
+}
+
+def setSchedule(schedule) {
+	logger.warn("setSchedule() is unsupported")
+}
+
 // Custom Commands
-def setTargetHeatLevel(Integer level) {
+def setTargetHeatLevel(level) {
 	logger.debug("setTargetHeatLevel: level=${level}")
 	level = Math.min(100, level as Integer)
     level = Math.max(state.supportsCooling ? -100 : 0, level)
@@ -311,7 +338,7 @@ def setTargetHeatLevel(Integer level) {
     updateFromBedResult(result)
 }
 
-def setPollIntervalSeconds(Integer seconds) {
+def setPollIntervalSeconds(seconds) {
 	sendEvent(name: "pollIntervalSeconds", value: seconds)
 	unschedule(poll)
 	if (pollIntervalSeconds > 0) {
@@ -333,24 +360,8 @@ def poll() {
 }
 
 def refresh() {
-    if (state.refreshBed || state.refreshUserInterval || state.refreshUserTrend) {
-		return
-	}
-	logger.debug("refresh")
-    state.refreshBed = true
-    state.refreshUserInterval = true
-    state.refreshUserTrend = true
+	logger.info("refresh")
     
-	runIn(1, delayedRefresh)
-}
-
-// We run the refresh delayed so that we can prevent multiple refreshes from running at once
-def delayedRefresh() {
-    if (!(state.refreshBed && state.refreshUserInterval && state.refreshUserTrend)) {
-        return
-    }
-	logger.debug("delayedRefresh")
-
     def headers = parent.apiRequestHeaders(logger)
     if (!headers) {
         logger.error("Error getting header")
@@ -374,17 +385,11 @@ def refreshBed(headers) {
         "${state.bedSide}HeatingDuration",
         "${state.bedSide}TargetHeatingLevel",
     ]
-	try {
-    	asyncApiGET("handleBedResponse", "/devices/${state.bedId}", headers, [filter: fields.join(",")])
-	} catch (Exception e) {
-		state.refreshBed = false
-		throw e
-	}
+	asyncApiGET("handleBedResponse", "/devices/${state.bedId}", headers, [filter: fields.join(",")])
 }
 
 def handleBedResponse(response, additionalData) {
     logger.debug("handleBedResponse")
-    state.refreshBed = false
     
     def data = handleAsyncResponse(response)
     updateFromBedResult(data.result)
@@ -455,17 +460,11 @@ def setOffline() {
 }
 
 def refreshUserInterval(headers) {
-	try {
-    	asyncApiGET("handleUserIntervalResponse", "/users/${state.userId}/intervals", headers)
-	} catch (Exception e) {
-        state.refreshUserInterval = false
-		throw e
-	}
+	asyncApiGET("handleUserIntervalResponse", "/users/${state.userId}/intervals", headers)
 }
 
 def handleUserIntervalResponse(response, additionalData) {
     logger.debug("handleUserIntervalResponse")
-    state.refreshUserInterval = false
     
     def data = handleAsyncResponse(response)
 	def intervals = data.intervals
@@ -511,17 +510,11 @@ def refreshUserTrend(headers) {
 		from: date,
 		to: date,
     ]
-	try {
-    	asyncApiGET("handleUserTrendResponse", "/users/${state.userId}/trends", headers, query)
-	} catch (Exception e) {
-        state.refreshUserTrend = false
-		throw e
-	}
+	asyncApiGET("handleUserTrendResponse", "/users/${state.userId}/trends", headers, query)
 }
 
 def handleUserTrendResponse(response, additionalData) {
     logger.debug("handleUserTrendResponse")
-    state.refreshUserTrend = false
     
     def data = handleAsyncResponse(response)
 	def days = data.days

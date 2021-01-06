@@ -211,31 +211,35 @@ def getChildAsleepPresenceId() {
 // Child Event Handlers
 //
 
-def componentSetLevel(device, level, transitionTime = null) {
-    logger.debug("componentSetLevel: device=${device} level=${level}")
-    if (device.deviceNetworkId == getChildHeatId()) {
+def componentSetLevel(componentDevice, level, transitionTime = null) {
+    if (!componentDevice) { return }
+    logger.debug("componentSetLevel: componentDevice=${componentDevice} level=${level}")
+    if (componentDevice.deviceNetworkId == getChildHeatId()) {
 		setTargetHeatLevel(level)
-	} else {
+	} else if (componentDevice.deviceNetworkId == getChildCoolId()) {
 		setTargetHeatLevel(-level)
 	}
 }
 
-def componentOn(device) {
-    logger.debug("componentOn: device=${device}")
+def componentOn(componentDevice) {
+    if (!componentDevice) { return }
+    logger.debug("componentOn: componentDevice=${componentDevice}")
 	on()
-    if (device.deviceNetworkId == getChildHeatId()) {
+    if (componentDevice.deviceNetworkId == getChildHeatId()) {
 		setTargetHeatLevel(Math.max(10, device.currentTargetHeatLevel as Integer))
-	} else {
+	} else if (componentDevice.deviceNetworkId == getChildCoolId()) {
 		setTargetHeatLevel(Math.min(-10, device.currentTargetHeatLevel as Integer))
 	}
 }
 
-def componentOff(device) {
-    logger.debug("componentOff: device=${device}")
+def componentOff(componentDevice) {
+    if (!componentDevice) { return }
+    logger.debug("componentOff: componentDevice=${componentDevice}")
 	off()
 }
 
-def componentRefresh(device) {
+def componentRefresh(componentDevice) {
+    if (!componentDevice) { return }
     refresh()
 }
 
@@ -266,6 +270,11 @@ def heat() {
 	logger.debug("heat")
     setTargetHeatLevel(Math.max(10, device.currentTargetHeatLevel as Integer))
 }
+
+def auto() {
+	logger.warn("auto() is unsupported")
+}
+
 
 def emergencyHeat() {
 	logger.warn("emergencyHeat() is unsupported")

@@ -13,7 +13,8 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
- *	2.0.3 (2021-01-06) [Amos Yuen] - Fix refresh not getting scheduled and user interval refresh code using length instead of size()
+ *	2.0.4 (2021-01-08) [Amos Yuen] - Fixed refresh, work around attribute schedule conflict with schedule() method
+ *	2.0.3 (2021-01-06) [Amos Yuen] - Fix user interval refresh code using length instead of size()
  *	2.0.2 (2021-01-05) [Amos Yuen] - Remove stray schedule call and add missing thermostat methods
  *	2.0.1 (2021-01-05) [Amos Yuen] - Add heatLevelReached attribute
  *	2.0 (2021-01-04) [Amos Yuen] - Clean up code and port to hubitat
@@ -95,30 +96,30 @@ metadata {
 		attribute "heatLevelReached", "boolean"
 				
 		command "setPollIntervalSeconds", [[
-			name: "Target Heat Level",
+			name: "Seconds",
 			minimum: 0,
 			type: "NUMBER",
 			description: "Interval in seconds to poll the mattress. A value of 0 disables polling. " +
 				"Values greater than 60 will be rounded to the nearest minute."]]
 		command "setTargetHeatLevel", [[
-			name: "Target Heat Level",
+			name: "Heat Level",
 			minimum: -100,
 			maximum: 100,
 			type: "NUMBER",
 			description: "Target Heat level. Negative level is cooling."]]
-        command "componentOn"
-        command "componentOff"
-        command "componentSetLevel"
-        command "componentRefresh"
+		command "componentOn"
+		command "componentOff"
+		command "componentSetLevel"
+		command "componentRefresh"
 	}
 
 	preferences {
-        input(name: "createCoolDimmerChild", type: "bool", title: "Create child dimmer to control cooling", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
-        input(name: "createHeatDimmerChild", type: "bool", title: "Create child dimmer to control heating", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
-        input(name: "createBedPresenceChild", type: "bool", title: "Create child presence for bed presence", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
-        input(name: "createAsleepPresenceChild", type: "bool", title: "Create child presence for asleep presence", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
+		input(name: "createCoolDimmerChild", type: "bool", title: "Create child dimmer to control cooling", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
+		input(name: "createHeatDimmerChild", type: "bool", title: "Create child dimmer to control heating", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
+		input(name: "createBedPresenceChild", type: "bool", title: "Create child presence for bed presence", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
+		input(name: "createAsleepPresenceChild", type: "bool", title: "Create child presence for asleep presence", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
 		input(name: "debugLogging", type: "bool", title: "Log debug statements", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
-        input(name: "traceLogging", type: "bool", title: "Log trace statements", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
+		input(name: "traceLogging", type: "bool", title: "Log trace statements", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
 	}
 }
 
@@ -144,16 +145,16 @@ def init() {
 	state.userId = tokens[2]
 	
 	createChildDevicesIfNotExist()
-    
-    if (device.currentTargetHeatLevel == null) {
-        sendEvent(name: "targetHeatLevel", value: 10, displayed: false)
-    }
+	
+	if (device.currentTargetHeatLevel == null) {
+		sendEvent(name: "targetHeatLevel", value: 10, displayed: false)
+	}
 	sendEvent(name: "supportedThermostatModes", value: ["cool", "heat", "off"])
 	sendEvent(name: "supportedThermostatFanModes", value: [])
 	sendEvent(name: "thermostatFanMode", value: "auto")
 	sendEvent(name: "version", value: textVersion(), displayed: false)
 	
-    setPollIntervalSeconds(device.currentPollIntervalSeconds == null ? 300 : device.currentPollIntervalSeconds)
+	setPollIntervalSeconds(device.currentPollIntervalSeconds == null ? 300 : device.currentPollIntervalSeconds)
 	refresh()
 }
 
@@ -171,13 +172,13 @@ def createChildDevicesIfNotExist() {
 
 def updateChildDevice(shouldCreate, type, id, label) {
 	def child = getChildDevice(id)
-    
-    if (child) {
-        if (!shouldCreate) {
-    		logger.info("updateChildDevice: Deleting child device ${label}")
-            deleteChildDevice(id)
-        }
-    } else if (shouldCreate) {
+	
+	if (child) {
+		if (!shouldCreate) {
+			logger.info("updateChildDevice: Deleting child device ${label}")
+			deleteChildDevice(id)
+		}
+	} else if (shouldCreate) {
 		logger.info("updateChildDevice: Creating child device ${label}")
 		addChildDevice("hubitat", type, id, 
 				[
@@ -210,9 +211,9 @@ def getChildAsleepPresenceId() {
 //
 
 def componentSetLevel(componentDevice, level, transitionTime = null) {
-    if (!componentDevice) { return }
-    logger.debug("componentSetLevel: componentDevice=${componentDevice} level=${level}")
-    if (componentDevice.deviceNetworkId == getChildHeatId()) {
+	if (!componentDevice) { return }
+	logger.debug("componentSetLevel: componentDevice=${componentDevice} level=${level}")
+	if (componentDevice.deviceNetworkId == getChildHeatId()) {
 		setTargetHeatLevel(level)
 	} else if (componentDevice.deviceNetworkId == getChildCoolId()) {
 		setTargetHeatLevel(-level)
@@ -220,10 +221,10 @@ def componentSetLevel(componentDevice, level, transitionTime = null) {
 }
 
 def componentOn(componentDevice) {
-    if (!componentDevice) { return }
-    logger.debug("componentOn: componentDevice=${componentDevice}")
+	if (!componentDevice) { return }
+	logger.debug("componentOn: componentDevice=${componentDevice}")
 	on()
-    if (componentDevice.deviceNetworkId == getChildHeatId()) {
+	if (componentDevice.deviceNetworkId == getChildHeatId()) {
 		setTargetHeatLevel(Math.max(10, device.currentTargetHeatLevel as Integer))
 	} else if (componentDevice.deviceNetworkId == getChildCoolId()) {
 		setTargetHeatLevel(Math.min(-10, device.currentTargetHeatLevel as Integer))
@@ -231,14 +232,14 @@ def componentOn(componentDevice) {
 }
 
 def componentOff(componentDevice) {
-    if (!componentDevice) { return }
-    logger.debug("componentOff: componentDevice=${componentDevice}")
+	if (!componentDevice) { return }
+	logger.debug("componentOff: componentDevice=${componentDevice}")
 	off()
 }
 
 def componentRefresh(componentDevice) {
-    if (!componentDevice) { return }
-    refresh()
+	if (!componentDevice) { return }
+	refresh()
 }
 
 //
@@ -257,16 +258,16 @@ def off() {
 
 def cool() {
 	logger.debug("cool")
-    if (!state.supportsCooling) {
-        logger.warn("cool() is unsupported for this device")
-        return
-    }
-    setTargetHeatLevel(Math.min(-10, device.currentTargetHeatLevel as Integer))
+	if (!state.supportsCooling) {
+		logger.warn("cool() is unsupported for this device")
+		return
+	}
+	setTargetHeatLevel(Math.min(-10, device.currentTargetHeatLevel as Integer))
 }
 
 def heat() {
 	logger.debug("heat")
-    setTargetHeatLevel(Math.max(10, device.currentTargetHeatLevel as Integer))
+	setTargetHeatLevel(Math.max(10, device.currentTargetHeatLevel as Integer))
 }
 
 def auto() {
@@ -280,34 +281,34 @@ def emergencyHeat() {
 
 def setThermostatMode(mode) {
 	logger.debug("setThermostatMode: mode=${mode}")
-    switch (mode) {
-        case "heat":
-            heat()
-            break
-        case "cool":
-            cool()
-            break
-        case "off":
-            off()
-            break
-        default:
-            logger.warn("setThermostatMode: Unsupported mode ${mode}")
-            break
-    }
+	switch (mode) {
+		case "heat":
+			heat()
+			break
+		case "cool":
+			cool()
+			break
+		case "off":
+			off()
+			break
+		default:
+			logger.warn("setThermostatMode: Unsupported mode ${mode}")
+			break
+	}
 }
 
 def setCoolingSetpoint(setpoint) {
 	logger.debug("setCoolingSetpoint: setpoint=${setpoint}")
-    if (!state.supportsCooling) {
-        logger.warn("setCoolingSetpoint() is unsupported for this device")
-        return
-    }
-    setTargetHeatLevel(setpoint)
+	if (!state.supportsCooling) {
+		logger.warn("setCoolingSetpoint() is unsupported for this device")
+		return
+	}
+	setTargetHeatLevel(setpoint)
 }
 
 def setHeatingSetpoint(setpoint) {
 	logger.debug("setHeatingSetpoint: setpoint=${setpoint}")
-    setTargetHeatLevel(setpoint)
+	setTargetHeatLevel(setpoint)
 }
 
 def fanAuto() {
@@ -330,11 +331,17 @@ def setSchedule(schedule) {
 	logger.warn("setSchedule() is unsupported")
 }
 
+// Needed to avoid schedule attribute colliding with schedule() method
+// from https://community.hubitat.com/t/name-conflict-schedule-and-thermostat-schedule/47677/3
+def getSchedule() {
+	return null
+}
+
 // Custom Commands
 def setTargetHeatLevel(level) {
 	logger.debug("setTargetHeatLevel: level=${level}")
 	level = Math.min(100, level as Integer)
-    level = Math.max(state.supportsCooling ? -100 : 0, level)
+	level = Math.max(state.supportsCooling ? -100 : 0, level)
 	def body = [
 		"${state.bedSide}TargetHeatingLevel": level,
 		// Value doesn't seem to matter as long as it is greater than 0
@@ -342,21 +349,21 @@ def setTargetHeatLevel(level) {
 		"${state.bedSide}HeatingDuration": level == 0 ? 0 : 3600
 	]
 	def result = apiPUT("/devices/${state.bedId}", body).device
-    updateFromBedResult(result)
+	updateFromBedResult(result)
 }
 
 def setPollIntervalSeconds(seconds) {
-	sendEvent(name: "pollIntervalSeconds", value: seconds)
 	unschedule(poll)
-	if (pollIntervalSeconds > 0) {
-        if (pollIntervalSeconds >= 60)  {
-            def pollIntervalMinutes = Math.round(pollIntervalSeconds / 60).toInteger()
-            pollIntervalSeconds = pollIntervalMinutes * 60
-            schedule("0 */${pollIntervalMinutes} * * * ?",  poll)
-        } else {
-          schedule("*/${pollIntervalSeconds} * * * * ?",  poll)
-        }
+	if (seconds > 0) {
+		if (seconds >= 60)  {
+			def minutes = Math.round(seconds / 60).toInteger()
+			seconds = minutes * 60
+			schedule("0 */${minutes} * * * ?", poll)
+		} else {
+		  schedule("*/${seconds} * * * * ?", poll)
+		}
 	}
+	sendEvent(name: "pollIntervalSeconds", value: seconds)
 }
 
 //
@@ -368,38 +375,38 @@ def poll() {
 
 def refresh() {
 	logger.info("refresh")
-    
-    def headers = parent.apiRequestHeaders(logger)
-    if (!headers) {
-        logger.error("Error getting header")
-        return
-    }
-    
-    // These are all run async
+	
+	def headers = parent.apiRequestHeaders(logger)
+	if (!headers) {
+		logger.error("Error getting header")
+		return
+	}
+	
+	// These are all run async
 	refreshBed(headers)
-    refreshUserInterval(headers)
-    refreshUserTrend(headers)
+	refreshUserInterval(headers)
+	refreshUserTrend(headers)
 }
 
 def refreshBed(headers) {
-    def fields = [
-        "features",
-        "lastHeard",
-        "online",
-        "sensorInfo",
-        "${state.bedSide}NowHeating",
-        "${state.bedSide}HeatingLevel",
-        "${state.bedSide}HeatingDuration",
-        "${state.bedSide}TargetHeatingLevel",
-    ]
+	def fields = [
+		"features",
+		"lastHeard",
+		"online",
+		"sensorInfo",
+		"${state.bedSide}NowHeating",
+		"${state.bedSide}HeatingLevel",
+		"${state.bedSide}HeatingDuration",
+		"${state.bedSide}TargetHeatingLevel",
+	]
 	asyncApiGET("handleBedResponse", "/devices/${state.bedId}", headers, [filter: fields.join(",")])
 }
 
 def handleBedResponse(response, additionalData) {
-    logger.debug("handleBedResponse")
-    
-    def data = handleAsyncResponse(response)
-    updateFromBedResult(data.result)
+	logger.debug("handleBedResponse")
+	
+	def data = handleAsyncResponse(response)
+	updateFromBedResult(data.result)
 }
 
 def updateFromBedResult(result) {
@@ -417,19 +424,19 @@ def updateFromBedResult(result) {
 	def nowHeating = result["${state.bedSide}NowHeating"]
 	sendEvent(name: "switch", value: nowHeating ? "on" : "off", displayed: true)
 	def targetHeatLevel = result["${state.bedSide}TargetHeatingLevel"] as Integer
-    def heatLevel = result["${state.bedSide}HeatingLevel"]
+	def heatLevel = result["${state.bedSide}HeatingLevel"]
 	if (targetHeatLevel != 0) {
 		// targetHeatLevel is always 0 if not on. So don't set it if 0 so that we keep the old
 		// value, which we can use when we turn it back on
 		sendEvent(name: "targetHeatLevel", value: targetHeatLevel, displayed: false)
-        sendEvent(name: "heatingSetpoint", value: targetHeatLevel, displayed: true)
-        sendEvent(name: "coolingSetpoint", value: targetHeatLevel, displayed: true)
-        sendEvent(name: "heatLevelReached", value: heatLevel == targetLevel, displayed: true)
+		sendEvent(name: "heatingSetpoint", value: targetHeatLevel, displayed: true)
+		sendEvent(name: "coolingSetpoint", value: targetHeatLevel, displayed: true)
+		sendEvent(name: "heatLevelReached", value: heatLevel == targetLevel, displayed: true)
 	}
 	sendEvent(name: "thermostatOperatingState", value: nowHeating ? (targetHeatLevel > 0 ? "heating" : "cooling") : "idle")
 	sendEvent(name: "thermostatMode", value: nowHeating ? (targetHeatLevel > 0 ? "heat" : "cool") : "off", displayed: true)
 	sendEvent(name: "heatLevel", value: heatLevel, displayed: true)
-    sendEvent(name: "temperature", value: heatLevel)
+	sendEvent(name: "temperature", value: heatLevel)
 	def heatingDurationSeconds = nowHeating ? result["${state.bedSide}HeatingDuration"] : 0
 	def formattedTime = convertSecondsToString(heatingDurationSeconds)
 	sendEvent(name: "heatingDuration", value: formattedTime, descriptionText: "Heating Duration ${formattedTime}", displayed: false)
@@ -471,9 +478,9 @@ def refreshUserInterval(headers) {
 }
 
 def handleUserIntervalResponse(response, additionalData) {
-    logger.debug("handleUserIntervalResponse")
-    
-    def data = handleAsyncResponse(response)
+	logger.debug("handleUserIntervalResponse")
+	
+	def data = handleAsyncResponse(response)
 	def intervals = data.intervals
 	def latestTempBedC
 	def latestTempRoomC
@@ -510,20 +517,20 @@ def handleUserIntervalResponse(response, additionalData) {
 }
 
 def refreshUserTrend(headers) {
-    // API returns the last week, so to only get today, request date 6 days in the future
+	// API returns the last week, so to only get today, request date 6 days in the future
 	def date = getLocalDateFormat("yyyy-MM-dd").format(new Date() + 6)
 	def query = [
-        tz: location.timeZone.getID(),
+		tz: location.timeZone.getID(),
 		from: date,
 		to: date,
-    ]
+	]
 	asyncApiGET("handleUserTrendResponse", "/users/${state.userId}/trends", headers, query)
 }
 
 def handleUserTrendResponse(response, additionalData) {
-    logger.debug("handleUserTrendResponse")
-    
-    def data = handleAsyncResponse(response)
+	logger.debug("handleUserTrendResponse")
+	
+	def data = handleAsyncResponse(response)
 	def days = data.days
 	def userTrend
 	if (days.size() > 0) {
@@ -534,25 +541,25 @@ def handleUserTrendResponse(response, additionalData) {
 	}
 
 	updateInBed(userTrend != null)
-    updateIsAsleep(userTrend != null && userTrend.sleepEnd == userTrend.presenceEnd)
+	updateIsAsleep(userTrend != null && userTrend.sleepEnd == userTrend.presenceEnd)
 }
 
 def updateInBed(boolean inBed) {
-    def description = inBed ? "In bed" : "Out of bed"  
-    sendEvent(name: "inBed", value: inBed, descriptionText: description, displayed: true) 
+	def description = inBed ? "In bed" : "Out of bed"  
+	sendEvent(name: "inBed", value: inBed, descriptionText: description, displayed: true) 
 	def childBedPresence = getChildDevice(getChildBedPresenceId())
-    if (childBedPresence) {
-        childBedPresence.sendEvent(name: "presence",  value: inBed ? "present" : "not present", descriptionText: description, displayed: true)
-    }
+	if (childBedPresence) {
+		childBedPresence.sendEvent(name: "presence",  value: inBed ? "present" : "not present", descriptionText: description, displayed: true)
+	}
 }
 
 def updateIsAsleep(boolean isAsleep) {
-    def description = isAsleep ? "Asleep" : "Awake"    
-    sendEvent(name: "isAsleep", value: isAsleep, descriptionText: description, displayed: true) 
+	def description = isAsleep ? "Asleep" : "Awake"	
+	sendEvent(name: "isAsleep", value: isAsleep, descriptionText: description, displayed: true) 
 	def childAsleepPresence = getChildDevice(getChildAsleepPresenceId())
-    if (childAsleepPresence) {
-        childAsleepPresence.sendEvent(name: "presence", value: isAsleep ? "present" : "not present", descriptionText: description, displayed: true)
-    }
+	if (childAsleepPresence) {
+		childAsleepPresence.sendEvent(name: "presence", value: isAsleep ? "present" : "not present", descriptionText: description, displayed: true)
+	}
 }
 
 //
@@ -597,21 +604,21 @@ def apiPUT(path, body) {
 }
 
 def makeHttpCall(methodFn, path, body = [:]) {
-    logger.debug("makeHttpCall: methodFn=${methodFn},\npath=${path},\nbody=${body}")
+	logger.debug("makeHttpCall: methodFn=${methodFn},\npath=${path},\nbody=${body}")
 	def headers = parent.apiRequestHeaders(logger)
 	def response
 	handleHttpErrors() {
-        "${methodFn}"([
+		"${methodFn}"([
 			uri: "${parent.apiUrl()}${path}",
 			body: body,
-            contentType: "application/json",
+			contentType: "application/json",
 			headers: headers,
 		]) { response = it }
 	}
-    
+	
 	if (response.status >= 400) {
-        def error = "handleResponse: Error status=${response.status}, data=${response.data}"
-	    logger.error(error)
+		def error = "handleResponse: Error status=${response.status}, data=${response.data}"
+		logger.error(error)
 		throw new Error(error)
 	}
 	logger.trace("handleResponse: status=${response.status}, data=${response.data}")
@@ -620,7 +627,7 @@ def makeHttpCall(methodFn, path, body = [:]) {
 
 def handleHttpErrors(Closure callback) {
 	try {
-        callback()
+		callback()
 	} catch (groovyx.net.http.HttpResponseException e) {
 		logger.error("makeHttpCall: HttpResponseException status=${e.statusCode}, body=${e.getResponse().getData()}", e)
 		if (e.statusCode == 401) {
@@ -634,13 +641,13 @@ def handleHttpErrors(Closure callback) {
 }
 
 def asyncApiGET(callbackFn, path, headers, query = [:]) {
-    logger.debug("asyncApiGet: methodFn=${callbackFn},\npath=${path},\nheaders=${headers},\nquery=${query}")
+	logger.debug("asyncApiGet: methodFn=${callbackFn},\npath=${path},\nheaders=${headers},\nquery=${query}")
 	handleHttpErrors() {
-        asynchttpGet(
+		asynchttpGet(
 			callbackFn,
 			[
 				uri: "${parent.apiUrl()}${path}",
-                query: query,
+				query: query,
 				headers: headers,
 			]
 		)
@@ -651,9 +658,9 @@ def handleAsyncResponse(response) {
 	if (response.hasError() || response.getStatus() >= 400) {
 		throw new Error("handleAsyncResponse: Error status=${response.getStatus()}, errorMessage=${response.getErrorMessage()}, errorData=${response.getErrorData()}")
 	}
-    def data = response.getJson()
+	def data = response.getJson()
 	logger.trace("handleAsyncResponse: status=${response.getStatus()}, data=${data}")
-    return data
+	return data
 }
 
 @Field final Map logger = [

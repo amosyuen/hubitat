@@ -5,6 +5,7 @@
 	"minimumHEVersion": "0.0",
 	"dateReleased": "2021-01-08",
 	"documentationLink": "https://github.com/amosyuen/hubitat/blob/main/eightsleep/README.md",
+	"communityLink": "https://community.hubitat.com/t/release-eight-sleep-community/60913/18",
 	"apps": [
 		{
 			"id": "481e7fe5-4d74-4886-a916-85d6fe1622b7",

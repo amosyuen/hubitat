@@ -19,34 +19,34 @@
 ***********************************************************************************************************************/
 
 definition(
-    name: "HSM Light Sync Room",
-    namespace: "amosyuen",
-    parent: "amosyuen:HSM Light Sync",
-    author: "Amos Yuen",
-    description: "DO NOT INSTALL DIRECTLY. Create instances using HSM Light Sync parent app.",
-    category: "Convenience",
-    iconUrl: "",
-    iconX2Url: "",
-    iconX3Url: "")
+	name: "HSM Light Sync Room",
+	namespace: "amosyuen",
+	parent: "amosyuen:HSM Light Sync",
+	author: "Amos Yuen",
+	description: "DO NOT INSTALL DIRECTLY. Create instances using HSM Light Sync parent app.",
+	category: "Convenience",
+	iconUrl: "",
+	iconX2Url: "",
+	iconX3Url: "")
 
 //
 // Preferences
 //
 
 preferences {
-    page(name: "pageMain")
+	page(name: "pageMain")
 }
 
 def pageMain() {
-    dynamicPage(name: "pageMain", title: "Room Settings", install: true, uninstall: true) {
-        section("")    {
-            label title: "Assign a name"
-            input "contactSensors", "capability.contactSensor", title: "Contact Sensors", multiple: true, required: false
-            input "room", "capability.switch", title: "Room Device", required: false
-            input "lights", "capability.colorControl", title: "Color Lights", multiple: true, required: true
-            input "showArmingState", "bool", title: "Show arming state colors",  default: false, required: true
-        }
-    }
+	dynamicPage(name: "pageMain", title: "Room Settings", install: true, uninstall: true) {
+		section("")	{
+			label title: "Assign a name"
+			input "contactSensors", "capability.contactSensor", title: "Contact Sensors", multiple: true, required: false
+			input "room", "capability.switch", title: "Room Device", required: false
+			input "lights", "capability.colorControl", title: "Color Lights", multiple: true, required: true
+			input "showArmingState", "bool", title: "Show arming state colors",  default: false, required: true
+		}
+	}
 }
 
 //
@@ -54,22 +54,22 @@ def pageMain() {
 //
 
 def installed() {
-    init()
+	init()
 }
 
 def updated() {
-    init()
+	init()
 }
 
 def init() {
-    unsubscribe()
-    unschedule()
-    
-    subscribe(contactSensors, "contact", eventHandler)
-    subscribe(room, "occupancy", eventHandler)
-    parent.updated()
+	unsubscribe()
+	unschedule()
+	
+	subscribe(contactSensors, "contact", eventHandler)
+	subscribe(room, "occupancy", eventHandler)
+	parent.updated()
 }
 
 def eventHandler(evt) {
-    parent.updateChildLights(this)
+	parent.updateChildLights(this)
 }

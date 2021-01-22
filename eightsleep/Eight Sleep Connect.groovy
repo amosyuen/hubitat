@@ -1,8 +1,6 @@
 /**
  *  Eight Sleep (Connect)
  *
- *  Copyright 2020 Amos Yuen, Alex Lee Yuk Cheung
- *
  *  Licensed under the Apache License, Version 2.0 (the "License") you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
  *
@@ -13,6 +11,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY 
+ *	3.0.0 (2021-01-22) [Amos Yuen] - Remove heatLevelReached and notifications
  *	2.0.1 (2021-01-05) [Amos Yuen] - Fixed credentials page and notifications for bed events
  *	2.0 (2021-01-04) [Amos Yuen] - Cleaned up code and ported to hubitat
  *			- Changed code to show each side of each device as an option. Removed partner login, just use partner sharing instead. 
@@ -32,7 +31,7 @@ import groovy.transform.Field
 @Field final Integer MAX_ACCESS_TOKEN_RENEW_ATTEMPTS = 3
 
 private def textVersion() {
-	return "Version: 2.0.1 - 2020-01-05"
+	return "Version: 3.0.0 - 2020-01-22"
 }
 
 private def textCopyright() {
@@ -43,7 +42,7 @@ definition(
 	name: "Eight Sleep (Connect)",
 	namespace: "amosyuen",
 	author: "Amos Yuen",
-	description: "Connect your Eight Sleep device to SmartThings",
+	description: "Connect your Eight Sleep Devices",
 	iconUrl: "https://raw.githubusercontent.com/alyc100/SmartThingsPublic/master/smartapps/alyc100/8slp-icon.png",
 	iconX2Url: "https://raw.githubusercontent.com/alyc100/SmartThingsPublic/master/smartapps/alyc100/8slp-icon.png",
 	iconX3Url: "https://raw.githubusercontent.com/alyc100/SmartThingsPublic/master/smartapps/alyc100/8slp-icon.png"
@@ -53,7 +52,6 @@ preferences {
 	page(name: "mainPage", title: "Eight Sleep (Connect)", install: true)
 	page(name: "credentialsPage")
 	page(name: "selectDevicePage")
-	page(name: "notificationsPage")
 }
 
 def mainPage() {
@@ -71,10 +69,6 @@ def mainPage() {
 				section ("<b>Eight Sleep Devices</b>") {
 					def devices = devicesSelected()
 					href("selectDevicePage", title: "Eight Sleep Devices", description: devices ? getDevicesSelectedString() : "No devices selected", state: devices)
-				}
-				section ("<b>Notifications</b>") {
-					def notifications = notificationsSelected()
-					href("notificationsPage", title: "Notifications", description: notifications ? getNotificationsString() : "No notifications configured", state: notifications)
 				}
 				section ("<b>App Name</b>") {
 					label(name: "name", title: "App Name", required: true, state: (name ? "complete" : null), defaultValue: app.name)
@@ -142,26 +136,6 @@ def selectDevicePage() {
   	}
 }
 
-def notificationsPage() {
-	dynamicPage(name: "notificationsPage", title: "Preferences", uninstall: false, install: false) {
-		section {
-			input("pushNotificationDevices", "capability.notification", title: "Push Notification Devices", multiple: true, required: false, submitOnChange: true)
-
-			if (pushNotificationDevices) {
-				input "onNotification", "bool", title: "Notify when bed is on ", required: false, defaultValue: false
-				input "offNotification", "bool", title: "Notify when bed is off ", required: false, defaultValue: false
-				input "heatLevelReachedNotification", "bool", title: "Notify when desired heat level reached", required: false, defaultValue: false
-				input "inBedNotification", "bool", title: "Notify when a person gets in bed (up to an hour delay)", required: false, defaultValue: false
-				input "outOfBedNotification", "bool", title: "Notify when a person gets out of bed (up to an hour delay)", required: false, defaultValue: false
-				input "asleepNotification", "bool", title: "Notify when a person is asleep (up to an hour delay)", required: false, defaultValue: false
-				input "awakeNotification", "bool", title: "Notify when a person is awake (up to an hour delay)", required: false, defaultValue: false
-			}			
-		}   
-		
-		section { footerParagraph() }	 
-	}
-}
-
 def footerParagraph() {
 	return paragraph("<hr><div style='text-align:center;font-size:14px;font-weight:bold'>${textVersion()}<br>${textCopyright()}</div>")
 }
@@ -184,32 +158,6 @@ def getDevicesSelectedString() {
   	return listString
 }
 
-def notificationsSelected() {
-	return pushNotificationDevices &&
-		(onNotification || offNotification || inBedAwakeNotification || inBedAsleepNotification || outOfBedNotification ||
-			heatLevelReachedNotification) ? "complete" : null
-}
-
-def getNotificationsString() {
-	def listString = ""
-	if (pushNotificationDevices) { 
-		listString += "Send the following notifications to " + pushNotificationDevices
-	}
-	
-	if (pushNotificationDevices) {
-		listString += ":\n"
-		if (onNotification) listString += "• On\n"
-		if (offNotification) listString += "• Off\n"
-  		if (heatLevelReachedNotification) listString += "• Desired Heat Level Reached\n"
-  		if (inBedNotification) listString += "• In Bed\n"
-  		if (outOfBedNotification) listString += "• Out Of Bed\n"
-  		if (asleepNotification) listString += "• Asleep\n"
-  		if (awakeNotification) listString += "• Awake\n"
-	}
-	if (listString != "") listString = listString.substring(0, listString.length() - 1)
-	return listString
-}
-
 // App lifecycle hooks
 
 def installed() {
@@ -227,17 +175,7 @@ def initialize() {
 	if (selectedEightSleep) {
 		createEightSleepDevicesIfNotExist()
 	
-		def devices = getChildDevices()
-		devices.each {
-			if (notificationsSelected()) {
-				subscribe(it, "switch", switchEventHandler, [filterEvents: false])
-				subscribe(it, "heatLevelReached", heatLevelReachedEventHandler, [filterEvents: false])
-				subscribe(it, "inBed", inBedEventHandler, [filterEvents: false])
-				subscribe(it, "isAsleep", asleepEventHandler, [filterEvents: false])
-			}
-			logger.debug("Refreshing device ${it.name}")
-			it.refresh()
-		}
+		getChildDevices()*.refresh()
 	}
 }
 
@@ -250,61 +188,6 @@ def uninstalled() {
 private removeChildDevices(devices) {
 	devices.each {
 		deleteChildDevice(it.deviceNetworkId)
-	}
-}
-
-// Event Handlers
-
-def switchEventHandler(evt) {
-	logger.debug("switchEventHandler: device=${evt.displayName} value=${evt.value}")
-	if (evt.value == "on") {
-		if (onNotification) {
-			sendMessage("${evt.displayName} is on")
-		}
-	}
-	else if (evt.value == "off") {
-		if (offNotification) {
-			sendMessage("${evt.displayName} is off")
-		}
-	}
-}
-	
-def heatLevelReachedEventHandler(evt) {
-	logger.debug("heatLevelReachedEventHandler: device=${evt.displayName} value=${evt.value}")
-	if (evt.value == "true") {
-		if (heatLevelReachedNotification) {
-			sendMessage("${evt.displayName} has reached target heaet level")
-		}
-	}
-}
-
-def inBedEventHandler(evt) {
-	logger.debug("inBedEventHandler: device=${evt.displayName} value=${evt.value}")
-	if (evt.value) {
-		if (inBedNotification) {
-			sendMessage("${evt.displayName} is in bed")
-		}
-	} else if (outOfBedNotification) {
-		sendMessage("${evt.displayName} is out of bed")
-	}
-}
-
-def isAsleepEventHandler(evt) {
-	logger.debug("isAsleepEventHandler: device=${evt.displayName} value=${evt.value}")
-	if (evt.value) {
-		if (asleepNotification) {
-			sendMessage("${evt.displayName} is asleep")
-		}
-	}
-	else if (awakeNotification) {
-		sendMessage("${evt.displayName} is awake")
-	}
-}
-
-def sendMessage(msg) {
-	logger.debug("sendMessage: msg=${msg}")
-	if (pushNotificationDevices) {
-		pushNotificationDevices.deviceNotification(msg)
 	}
 }
 
@@ -342,7 +225,10 @@ def updateDevicesAndSharedUsers() {
    	logger.debug("updateDevicesAndSharedUsers: selectedDevices=${selectedDevices}")
 	
 	//Remove devices if does not exist on the Eight Sleep platform
-	getChildDevices().findAll { !selectedDevices.contains("${it.deviceNetworkId}") }.each {
+	getChildDevices().each {
+		if (selectedDevices.contains("${it.deviceNetworkId}")) {
+			return
+		}
 		logger.info("updateDevicesAndSharedUsers: Deleting ${it.deviceNetworkId}")
 		try {
 			deleteChildDevice(it.deviceNetworkId)

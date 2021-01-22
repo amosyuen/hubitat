@@ -6,20 +6,20 @@
 * Get and set current level
 * Get and set target level for heating
 * Get and set target level for cooling (if supported by bed)
-* Get whether there is a person in the bed (up to an hour delayed)
-* Get whether there is a person is asleep (up to an hour delayed)
+* Get the sleep stage
 * Get the bed temperature (only when in bed and up to an hour delayed)
 * Get the room temperature (only when in bed and up to an hour delayed)
 * Has the capabilities of a thermostat as this fits the bed model most closely
-* Get push notifications on common events
 * Polls the servers every `pollIntervalSeconds` seconds, where `pollIntervalSeconds` can be  set by the user. Defaults to every 5 minutes.
 
 # Preferences
 
 * You can create a child dimmer for controlling cooling
 * You can create a child dimmer for controlling heating
-* You can create a child presence for `inBed`
-* You can create a child presence for `isAsleep`
+* You can create a child presence for when sleep state is in bed
+* You can create a child presence for when sleep state is asleep
+* You can create a child temperature sensor for bed temperature
+* You can create a child temperature sensor for room temperature
 
 # Support
 
@@ -76,8 +76,3 @@ Another option is to use the child cool and heat dimmers, but those will show up
 In bed and is asleep presence detection is based on eight sleep hourly user data analysis, so will have up to an hour latency, but should be accurate on changes.
 
 Bed and room temperature are only provided when a user is in bed and will have up to an hour latency.
-
-### Suggested Actions
-
-* Set location mode to `night` if `isAsleep` becomes `true` and location mode to `day` if `isAsleep` becomes `false`
-* If `inBed` becomes `true` you know that someone is in the bedroom. If you use something like Room Manager you can set the bedroom to engaged state.

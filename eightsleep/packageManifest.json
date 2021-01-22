@@ -1,9 +1,9 @@
 {
 	"packageName": "Eight Sleep (Connect)",
 	"author": "Amos Yuen",
-	"version": "2.0.4",
+	"version": "3.0.0",
 	"minimumHEVersion": "0.0",
-	"dateReleased": "2021-01-08",
+	"dateReleased": "2021-01-22",
 	"documentationLink": "https://github.com/amosyuen/hubitat/blob/main/eightsleep/README.md",
 	"communityLink": "https://community.hubitat.com/t/release-eight-sleep-community/60913/18",
 	"apps": [
@@ -15,7 +15,7 @@
 			"required": true,
 			"oauth": false,
 			"primary": true,
-			"version": "2.0.1"
+			"version": "3.0.0"
 		}
 	],
 	"drivers": [
@@ -25,7 +25,7 @@
 			"namespace": "amosyuen",
 			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/eightsleep/Eight%20Sleep%20Mattress.groovy",
 			"required": true,
-			"version": "2.0.4"
+			"version": "3.0.0"
 		}
 	]
 }

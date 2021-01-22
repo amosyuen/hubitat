@@ -1,8 +1,6 @@
 /**
  *	Eight Sleep Mattress
  *
- *	Copyright 2020 Amos Yuen, Alex Lee Yuk Cheung
- *
  *	Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *	in compliance with the License. You may obtain a copy of the License at:
  *
@@ -13,12 +11,19 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
+ *	3.0.0 (2021-01-22) [Amos Yuen]
+ *			- Use userIntervals for calculating sleep stage and expose as sleepStage attribute
+ *			- Add preferences for creating temperature sensor for bed and room temperature
+ *		  	- Set bedTemperature and roomTemperature to NaN if no value
+ *		  	- Remove userTrends http call
+ *			- Remove inBed, isAsleep, heatLevelReached, bedTemperatureLastUpdated, roomTemperatureLastUpdated
  *	2.0.4 (2021-01-08) [Amos Yuen] - Fixed refresh, work around attribute schedule conflict with schedule() method
  *	2.0.3 (2021-01-06) [Amos Yuen] - Fix user interval refresh code using length instead of size()
  *	2.0.2 (2021-01-05) [Amos Yuen] - Remove stray schedule call and add missing thermostat methods
  *	2.0.1 (2021-01-05) [Amos Yuen] - Add heatLevelReached attribute
  *	2.0 (2021-01-04) [Amos Yuen] - Clean up code and port to hubitat
- *	1.2 (2020-01-28) [Amos Yuen] - Add support for cooling on the pod
+ *	1.2 (2020-01-28) [Amos Yuen]
+ *			- Add support for cooling on the pod
  *			- Use the user interval for bed and room temperature detection
  *			- Use the user trend for presence and asleep detection
  *	1.1 (2017-11-13) [Alex Cheung] - Add back up method for determining sleep event if presence values from API become unreliable.
@@ -26,7 +31,8 @@
  *
  *	1.0 BETA 8c (2017-01-25) [Alex Cheung] - Stop Infinite Loop / Divide by Errors.
  *	1.0 BETA 8b (2017-01-20) [Alex Cheung] - Ensure one sleep score notification per day.
- *	1.0 BETA 8 (2017-01-19) [Alex Cheung] - Sleep score stored as "battery" capability for rule building. 
+ *	1.0 BETA 8 (2017-01-19) [Alex Cheung]
+ *			- Sleep score stored as "battery" capability for rule building. 
  *			- Sleep score notifications via Eight Sleep (Connect) app. 
  *			- Tweaks to 8slp bed event frequency. 
  *			- Tile display changes.
@@ -38,7 +44,8 @@
  *	1.0 BETA 7 (2017-01-12) [Alex Cheung] - Tweaks to bed presence logic.
  *	1.0 BETA 6c (2017-01-13) [Alex Cheung] - 8Slp Event minor fixes. Not important to functionality.
  *	1.0 BETA 6b (2017-01-13) [Alex Cheung] - Bug fix. Stop heatingDurationSeconds being reset when "on" command is sent while device is already on.
- *	1.0 BETA 6 (2017-01-13) [Alex Cheung] - Changes to bed presence contact behaviour.
+ *	1.0 BETA 6 (2017-01-13) [Alex Cheung]
+ *			- Changes to bed presence contact behaviour.
  *			- Handle scenario of no partner credentials. 
  *	1.0 BETA 5 (2017-01-13) [Alex Cheung] - Historical sleep chart improvements showing SleepScore.
  *	1.0 BETA 4c (2017-01-12) [Alex Cheung] - Better "Offline" detection and handling.
@@ -46,7 +53,8 @@
  *	1.0 BETA 4 (2017-01-12) [Alex Cheung] - Further refinements to bed presence contact behaviour.
  *	1.0 BETA 3c (2017-01-11) [Alex Cheung] - Use Google Chart image API for Android support
  *	1.0 BETA 3b (2017-01-11) [Alex Cheung] - Further Chart formatting update
- *	1.0 BETA 3 (2017-01-11) [Alex Cheung] - Chart formatting update
+ *	1.0 BETA 3 (2017-01-11) [Alex Cheung]
+ *			- Chart formatting update
  *			- Attempt to improve bed detection
  *	1.0 BETA 2 (2017-01-11) [Alex Cheung] - Change set level behaviour
  *			- Support partner sleep trend data
@@ -59,7 +67,7 @@
 import groovy.transform.Field
 
 private def textVersion() {
-	 def text = "Eight Sleep Mattress\nVersion: 2.0.3\nDate: 2021-01-06"
+	 def text = "Eight Sleep Mattress\nVersion: 3.0.0\nDate: 2021-01-22"
 }
 
 private def textCopyright() {
@@ -88,12 +96,8 @@ metadata {
 		attribute "targetHeatLevel", "number"
 		attribute "lastUpdated", "string"
 		attribute "bedTemperature", "number"
-		attribute "bedTemperatureLastUpdated", "string"
 		attribute "roomTemperature", "number"
-		attribute "roomTemperatureLastUpdated", "string"
-		attribute "inBed", "boolean"
-		attribute "isAsleep", "boolean"
-		attribute "heatLevelReached", "boolean"
+		attribute "sleepStage", "enum", ["out", "awake", "light", "rem", "deep"]
 				
 		command "setPollIntervalSeconds", [[
 			name: "Seconds",
@@ -118,6 +122,8 @@ metadata {
 		input(name: "createHeatDimmerChild", type: "bool", title: "Create child dimmer to control heating", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
 		input(name: "createBedPresenceChild", type: "bool", title: "Create child presence for bed presence", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
 		input(name: "createAsleepPresenceChild", type: "bool", title: "Create child presence for asleep presence", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
+		input(name: "createBedTemperatureChild", type: "bool", title: "Create child temperature for bed temperature", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
+		input(name: "createRoomTemperatureChild", type: "bool", title: "Create child temperature for room temperature", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
 		input(name: "debugLogging", type: "bool", title: "Log debug statements", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
 		input(name: "traceLogging", type: "bool", title: "Log trace statements", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
 	}
@@ -168,6 +174,8 @@ def createChildDevicesIfNotExist() {
 	updateChildDevice(createHeatDimmerChild, "Generic Component Dimmer", getChildHeatId(), device.label + " Heat")
 	updateChildDevice(createBedPresenceChild, "Virtual Presence", getChildBedPresenceId(), device.label + " Presence")
 	updateChildDevice(createAsleepPresenceChild, "Virtual Presence", getChildAsleepPresenceId(), device.label + " Asleep Presence")
+	updateChildDevice(createBedTemperatureChild, "Generic Component Temperature Sensor", getChildBedTemperatureId(), device.label + " Bed Temperature")
+	updateChildDevice(createRoomTemperatureChild, "Generic Component Temperature Sensor", getChildRoomTemperatureId(), device.label + " Room Temperature")
 }
 
 def updateChildDevice(shouldCreate, type, id, label) {
@@ -204,6 +212,14 @@ def getChildBedPresenceId() {
 
 def getChildAsleepPresenceId() {
 	return "${device.deviceNetworkId}_asleep"
+}
+
+def getChildBedTemperatureId() {
+	return "${device.deviceNetworkId}_bed_temp"
+}
+
+def getChildRoomTemperatureId() {
+	return "${device.deviceNetworkId}_room_temp"
 }
 
 //
@@ -385,7 +401,6 @@ def refresh() {
 	// These are all run async
 	refreshBed(headers)
 	refreshUserInterval(headers)
-	refreshUserTrend(headers)
 }
 
 def refreshBed(headers) {
@@ -428,18 +443,19 @@ def updateFromBedResult(result) {
 	if (targetHeatLevel != 0) {
 		// targetHeatLevel is always 0 if not on. So don't set it if 0 so that we keep the old
 		// value, which we can use when we turn it back on
-		sendEvent(name: "targetHeatLevel", value: targetHeatLevel, displayed: false)
-		sendEvent(name: "heatingSetpoint", value: targetHeatLevel, displayed: true)
-		sendEvent(name: "coolingSetpoint", value: targetHeatLevel, displayed: true)
-		sendEvent(name: "heatLevelReached", value: heatLevel == targetLevel, displayed: true)
+		sendEvent(name: "targetHeatLevel", value: targetHeatLevel, displayed: true)
+		sendEvent(name: "heatingSetpoint", value: targetHeatLevel, displayed: false)
+		sendEvent(name: "coolingSetpoint", value: targetHeatLevel, displayed: false)
 	}
-	sendEvent(name: "thermostatOperatingState", value: nowHeating ? (targetHeatLevel > 0 ? "heating" : "cooling") : "idle")
 	sendEvent(name: "thermostatMode", value: nowHeating ? (targetHeatLevel > 0 ? "heat" : "cool") : "off", displayed: true)
+	sendEvent(name: "thermostatOperatingState", value: nowHeating ? (targetHeatLevel > 0 ? "heating" : "cooling") : "idle", displayed: false)
 	sendEvent(name: "heatLevel", value: heatLevel, displayed: true)
-	sendEvent(name: "temperature", value: heatLevel)
+	sendEvent(name: "temperature", value: heatLevel, displayed: false)
 	def heatingDurationSeconds = nowHeating ? result["${state.bedSide}HeatingDuration"] : 0
 	def formattedTime = convertSecondsToString(heatingDurationSeconds)
-	sendEvent(name: "heatingDuration", value: formattedTime, descriptionText: "Heating Duration ${formattedTime}", displayed: false)
+	if (formattedTime != device.currentHeatingDuration) {
+		sendEvent(name: "heatingDuration", value: formattedTime, descriptionText: "Heating Duration ${formattedTime}", displayed: false)
+	}
 
 	// Update child switches
 	def childCool = getChildDevice(getChildCoolId())
@@ -482,83 +498,70 @@ def handleUserIntervalResponse(response, additionalData) {
 	
 	def data = handleAsyncResponse(response)
 	def intervals = data.intervals
-	def latestTempBedC
-	def latestTempRoomC
+	def latestSleepStage = "out"
+	def latestTempBedC = Float.NaN
+	def latestTempRoomC = Float.NaN
 	if (intervals.size() > 0) {
 		def userInterval = intervals[0]
-		def timeseries = userInterval.timeseries
-		if (userInterval.incomplete && timeseries) {
-			if (timeseries.tempBedC.size() > 0) {
-				latestTempBedC = timeseries.tempBedC[timeseries.tempBedC.size() - 1]
+		if (userInterval.incomplete) {
+			def stages = userInterval.stages
+			if (stages && stages.size() > 0) {
+				latestSleepStage = stages[stages.size() - 1].stage
 			}
-			if (timeseries.tempRoomC.size() > 0) {
-				latestTempRoomC = timeseries.tempRoomC[timeseries.tempRoomC.size() - 1]
+			def timeseries = userInterval.timeseries
+			if (timeseries) {
+				if (timeseries.tempBedC.size() > 0) {
+					latestTempBedC = timeseries.tempBedC[timeseries.tempBedC.size() - 1][1]
+				}
+				if (timeseries.tempRoomC.size() > 0) {
+					latestTempRoomC = timeseries.tempRoomC[timeseries.tempRoomC.size() - 1][1]
+				}
 			}
 		}
 	}
 
-	def dateFormat = getLocalDateFormat("EEE, d MMM yyyy HH:mm:ss")
-	if (latestTempBedC) {
-		sendEvent(name: "bedTemperature", value: scaleTemperatureC(latestTempBedC[1]), unit: location.temperatureScale, displayed: true)
-		def date = parent.parseIsoTime(latestTempBedC[0])
-		sendEvent(name: "bedTemperatureLastUpdated", value: dateFormat.format(parent.parseIsoTime(latestTempBedC[0])))
-	} else {
-		sendEvent(name: "bedTemperature", value: "50", unit: location.temperatureScale)
-		sendEvent(name: "bedTemperatureLastUpdated", value: null)
-	}
-
-	if (latestTempRoomC) {
-		sendEvent(name: "roomTemperature", value: scaleTemperatureC(latestTempRoomC[1]), unit: location.temperatureScale, displayed: true)
-		sendEvent(name: "roomTemperatureLastUpdated", value: dateFormat.format(parent.parseIsoTime(latestTempRoomC[0])))
-	} else {
-		sendEvent(name: "roomTemperature", value: null)
-		sendEvent(name: "roomTemperatureLastUpdated", value: null)
-	}
+	updateSleepStage(latestSleepStage)
+	updateBedTemperature(latestTempBedC)
+	updateRoomTemperature(latestTempRoomC)
 }
 
-def refreshUserTrend(headers) {
-	// API returns the last week, so to only get today, request date 6 days in the future
-	def date = getLocalDateFormat("yyyy-MM-dd").format(new Date() + 6)
-	def query = [
-		tz: location.timeZone.getID(),
-		from: date,
-		to: date,
-	]
-	asyncApiGET("handleUserTrendResponse", "/users/${state.userId}/trends", headers, query)
-}
+def updateSleepStage(sleepStage) {
+	sendEvent(name: "sleepStage", value: sleepStage, displayed: true)
 
-def handleUserTrendResponse(response, additionalData) {
-	logger.debug("handleUserTrendResponse")
-	
-	def data = handleAsyncResponse(response)
-	def days = data.days
-	def userTrend
-	if (days.size() > 0) {
-		def day = days[days.size()-1]
-		if (day.incomplete) {
-			userTrend = day
-		}
-	}
-
-	updateInBed(userTrend != null)
-	updateIsAsleep(userTrend != null && userTrend.sleepEnd == userTrend.presenceEnd)
-}
-
-def updateInBed(boolean inBed) {
-	def description = inBed ? "In bed" : "Out of bed"  
-	sendEvent(name: "inBed", value: inBed, descriptionText: description, displayed: true) 
 	def childBedPresence = getChildDevice(getChildBedPresenceId())
 	if (childBedPresence) {
-		childBedPresence.sendEvent(name: "presence",  value: inBed ? "present" : "not present", descriptionText: description, displayed: true)
+		childBedPresence.sendEvent(
+			name: "presence", value: sleepStage == "out" ? "not present" : "present", displayed: true)
+	}
+ 
+	def childAsleepPresence = getChildDevice(getChildAsleepPresenceId())
+	if (childAsleepPresence) {
+		childAsleepPresence.sendEvent(
+			name: "presence", value: sleepStage == "out" || sleepStage == "awake" ? "not present" : "present", displayed: true)
+	}
+
+	getChildBedTemperatureId
+}
+
+def updateBedTemperature(tempC) {
+	def temperature = tempCToLocationTemp(tempC)
+	sendEvent(name: "bedTemperature", value: temperature, unit: location.temperatureScale, displayed: true)
+
+	def childTemperature = getChildDevice(getChildBedTemperatureId())
+	if (childTemperature) {
+		childTemperature.sendEvent(
+			name: "temperature", value: temperature, unit: location.temperatureScale, displayed: true)
 	}
 }
 
-def updateIsAsleep(boolean isAsleep) {
-	def description = isAsleep ? "Asleep" : "Awake"	
-	sendEvent(name: "isAsleep", value: isAsleep, descriptionText: description, displayed: true) 
-	def childAsleepPresence = getChildDevice(getChildAsleepPresenceId())
-	if (childAsleepPresence) {
-		childAsleepPresence.sendEvent(name: "presence", value: isAsleep ? "present" : "not present", descriptionText: description, displayed: true)
+def updateRoomTemperature(tempC) {
+	def temperature = tempCToLocationTemp(tempC)
+	sendEvent(name: "roomTemperature", value: temperature, unit: location.temperatureScale, displayed: true)
+
+	def childTemperature = getChildDevice(getChildRoomTemperatureId())
+	if (childTemperature) {
+		childTemperature.sendEvent(
+			name: "temperature", value: temperature, unit: location.temperatureScale, displayed: true)
 	}
 }
 
@@ -566,18 +569,11 @@ def updateIsAsleep(boolean isAsleep) {
 // Helpers
 //
 
-def scaleTemperatureC(tempC) {
-	if (location.temperatureScale == "F") {
+def tempCToLocationTemp(tempC) {
+	if (tempC != null && location.temperatureScale == "F") {
 		return tempC * 9 / 5 + 32
 	}
 	return tempC
-}
-
-def scaleTemperatureF(tempF) {
-	if (location.temperatureScale == "C") {
-		return (tempF - 32) * 5 / 9
-	}
-	return tempF
 }
 
 def convertSecondsToString(seconds) {

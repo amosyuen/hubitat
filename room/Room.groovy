@@ -2,7 +2,7 @@
 *
 *	A smartapp to manage rooms.
 *
-*	Copyright (C) 2021 Amos Yuen, bangali
+*	Copyright (C) 2020 amosyuen
 *
 *	License:
 *	This program is free software: you can redistribute it and/or modify it under the terms of the GNU
@@ -41,7 +41,7 @@ definition(
 	name: "Room",
 	namespace: "amosyuen",
 	parent: "amosyuen:Room Manager",
-	author: "Amos Yuen, Bangali",
+	author: "Amos Yuen",
 	description: "DO NOT INSTALL DIRECTLY. Create instances using room manager parent app.",
 	category: "Convenience",
 	iconUrl: "https://cdn.rawgit.com/adey/bangali/master/resources/icons/roomOccupancy.png",
@@ -241,8 +241,8 @@ def init() {
 	unsubscribe()
 	unschedule()
 	
-	if (!atomicState.occupancyChangeTime) {
-		atomicState.occupancyChangeTime = 0
+	if (!atomicState.appLightChangeTime) {
+		atomicState.appLightChangeTime = 0
 	}
 	if (!atomicState.lastTriggerTime) {
 		atomicState.lastTriggerTime = 0
@@ -454,7 +454,7 @@ def updateOccupancy(occupancy)	{
 
 	logDebug("updateOccupancy: $occupancy")
 	atomicState.occupancy = occupancy
-	atomicState.occupancyChangeTime = now()
+	atomicState.appLightChangeTime = now()
 	child.sendEvent(name: "occupancy", value: occupancy, descriptionText: "occupancy changed to ${occupancy}", displayed: true)
 	def value = occupancy == "vacant" ? 'off' : 'on'
 	child.sendEvent(name: "switch", value: value, descriptionText: "switch is ${value}", displayed: true)
@@ -502,6 +502,7 @@ def locationModeHandler(evt) {
 	if (atomicState.occupancy == "occupied") {
 		logInfo("locationModeHandler: Re-evaluate occupied mode")
 		// Re-evaluate occupied lights since it may only run in certain modes
+        atomicState.appLightChangeTime = now()
 		updateOccupiedLights()
 	}
 }
@@ -509,7 +510,8 @@ def locationModeHandler(evt) {
 def lightSensorHandler(evt) {
 	logDebug("lightSensorHandler: ${evt.getDevice()} ${evt.name}=${evt.value}")
 	def lux = getAverageLux()
-	def newInLuxRange = atomicState.inLuxRange
+	def oldInLuxRange = atomicState.inLuxRange
+	def newInLuxRange = oldInLuxRange
 	if (newInLuxRange) {
 		if (lux > occupiedLuxThresholdOff) {
 			newInLuxRange = false
@@ -517,13 +519,17 @@ def lightSensorHandler(evt) {
 	} else if (lux <= occupiedLuxThresholdOn) {
 	    newInLuxRange = true
 	}
-	atomicState.inLuxRange = newInLuxRange
-	switch (atomicState.occupancy) {
-		case "occupied":
-			logDebug("lightSensorHandler: Re-evaluating occupied lights because of lux change")
-			updateOccupiedLights()
-			break
-	}
+    
+    if (newInLuxRange != oldInLuxRange) {
+    	atomicState.inLuxRange = newInLuxRange
+    	switch (atomicState.occupancy) {
+    		case "occupied":
+    			logDebug("lightSensorHandler: Re-evaluating occupied lights because of lux change")
+                atomicState.appLightChangeTime = now()
+    			updateOccupiedLights()
+    			break
+	    }
+    }
 }
 
 def contactSensorHandler(evt) {
@@ -699,7 +705,7 @@ def setEngagedIfUserChange(value, evt, isUserChangeFn, source) {
 		userChange = isUserChangeFn(value, evt.getDeviceId())
 	}
     if (!userChange) {
-        def millisSinceOccupancyChange = ((time ? time : now()) - atomicState.occupancyChangeTime)
+        def millisSinceOccupancyChange = ((time ? time : now()) - atomicState.appLightChangeTime)
         logDebug("${source}: millisSinceOccupancyChange ${millisSinceOccupancyChange}")
         userChange = millisSinceOccupancyChange > OCCUPANCY_TRANSITION_MILLIS
     }

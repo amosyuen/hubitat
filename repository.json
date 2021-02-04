@@ -14,6 +14,13 @@
 				"Presence & Location",
 				"Sleep"
 			]
+		},
+		{
+			"name": "Motion in Window",
+			"category": "Convenience",
+			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/motion/packageManifest.json",
+			"description": "Create a motion sensor that is triggered active after X motion events in Y seconds",
+			"tags": ["Motion Control"]
 		}
 	]
 }

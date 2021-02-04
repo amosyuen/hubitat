@@ -1,0 +1,20 @@
+{
+	"packageName": "Motion in Window",
+	"author": "Amos Yuen",
+	"version": "1.0.0",
+	"minimumHEVersion": "0.0",
+	"dateReleased": "2021-02-03",
+	"documentationLink": "https://github.com/amosyuen/hubitat/blob/main/motion/README.md",
+	"apps": [
+		{
+			"id": "4fd61022-66ae-11eb-ae93-0242ac130002",
+			"name": "Motion In Window",
+			"namespace": "amosyuen",
+			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/motion/Motion%20In%20Window.groovy",
+			"required": true,
+			"oauth": false,
+			"primary": true,
+			"version": "1.0.0"
+		}
+	]
+}

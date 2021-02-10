@@ -1,0 +1,46 @@
+{
+	"packageName": "Eufy Security (Alpha)",
+	"author": "Amos Yuen",
+	"version": "0.0.0",
+	"minimumHEVersion": "0.0",
+	"dateReleased": "2021-02-10",
+	"documentationLink": "https://github.com/amosyuen/hubitat/blob/main/eufysecurity/README.md",
+	"apps": [
+		{
+			"id": "c427d570-2c3a-4786-b5f5-c10344146bc8",
+			"name": "Eufy Security",
+			"namespace": "amosyuen",
+			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/eufysecurity/Eufy%20Security.groovy",
+			"required": true,
+			"oauth": false,
+			"primary": true,
+			"version": "0.0.0"
+		}
+	],
+	"drivers": [
+		{
+			"id": "b4e1430a-1a47-4172-892f-c7d737541544",
+			"name": "Eufy Security Camera",
+			"namespace": "amosyuen",
+			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/eufysecurity/Eufy%20Security%20Camera.groovy",
+			"required": true,
+			"version": "0.0.0"
+		},
+		{
+			"id": "48ab58e4-6b85-11eb-9439-0242ac130002",
+			"name": "Eufy Security Doorbell",
+			"namespace": "amosyuen",
+			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/eufysecurity/Eufy%20Security%20Doorbell.groovy",
+			"required": true,
+			"version": "0.0.0"
+		},
+		{
+			"id": "458fd590-6b85-11eb-9439-0242ac130002",
+			"name": "Eufy Security Station",
+			"namespace": "amosyuen",
+			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/eufysecurity/Eufy%20Security%20Station.groovy",
+			"required": true,
+			"version": "0.0.0"
+		}
+	]
+}

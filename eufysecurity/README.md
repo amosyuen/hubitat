@@ -32,7 +32,6 @@ WARNING: Still in Beta
 WARNING: Needs more testing, seems to have settings overwritten by app.
 
 * Turn on or off
-* Set mode
 * Set audio recording
 * Set motion detection
 * Set dection type

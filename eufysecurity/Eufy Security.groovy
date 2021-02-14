@@ -11,12 +11,13 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY 
+ *	0.0.1 (2020-02-15) [Amos Yuen] - Fix bug in requesting two factor auth code. Use domain returned in login for api endpoint.
  *	0.0.0 (2020-02-10) [Amos Yuen] - Initial Release
  */
 import groovy.transform.Field
 
 private def textVersion() {
-	return "Version: 0.0.0 - 2020-02-10"
+	return "Version: 0.0.1 - 2020-02-15"
 }
 
 private def textCopyright() {
@@ -180,6 +181,11 @@ def updated() {
 
 def initialize() {
 	logger.debug("initialize")
+    
+    if (!state.apiUrl) {
+        state.apiUrl = "https://security-app.eufylife.com/v1"
+    }
+    
 	def deviceData = updateDeviceList(returnDeviceData: true)
     syncChildDevices(deviceData)
 	getChildDevices()*.refresh()
@@ -256,9 +262,9 @@ private def login(logger = logger, loginScreen = false) {
         }
     }
     
-    //if (data.domain) {
-        //state.baseURL = "https://${data.domain}/v1"
-    //}
+    if (data.domain) {
+        state.apiUrl = "https://${data.domain}/v1"
+    }
     
     setAuthToken(data)
 	setLoginError(null)
@@ -289,7 +295,7 @@ private def requestAuthCode() {
     // Type 1 = Push
     // Type 2 = Email
     def body = [ message_type: 2 ]
-    apiPOST("/sms/send/verify_code", body, refreshToken=false)
+    apiPOST("/sms/send/verify_code", body)
     setLoginError("Requested email authentication code. Please login with email authentication code.")
 }
 
@@ -468,44 +474,45 @@ private def makeHttpCallAndHandleCode(methodFn, path, body = [:]) {
 }
 
 private def makeHttpCall(methodFn, path, body = [:], refreshToken = true) {
+    def uri = "${apiUrl()}${path}"
 	def headers = apiRequestHeaders(logger, refreshToken)
 	def response
 	try {
-	    logger.trace("makeHttpCall methodFn=${methodFn},\nuri=${apiUrl()}${path},\nbody=${body},\nheaders=${headers}")
+	    logger.trace("makeHttpCall methodFn=${methodFn},\nuri=${uri},\nbody=${body},\nheaders=${headers}")
 		"${methodFn}"([
-			uri: "${apiUrl()}${path}",
+			uri: uri,
 			body: body,
             requestContentType: 'application/json',
 			headers: headers
 		]) { response = it }
 	} catch (groovyx.net.http.HttpResponseException e) {
-		logger.error("makeHttpCall: HttpResponseException status=${e.statusCode}, body=${e.getResponse().getData()}")
+		logger.error("makeHttpCall: HttpResponseException uri=${uri} status=${e.statusCode}, body=${e.getResponse().getData()}")
 		if (e.statusCode == 401) {
 			// OAuth token is expired
 			state.authToken = null
-			logger.warn("makeHttpCall: Invalid access token. Need to login again.")
+			logger.warn("makeHttpCall: Invalid access token. Need to login again. uri=${uri}")
 		}
 		throw e
 	} catch (java.net.SocketTimeoutException e) {
-		logger.warn("makeHttpCall: Connection timed out", e)
+		logger.warn("makeHttpCall: Connection timed out. uri=${uri}", e)
 		throw e
 	}
 	
 	if (response.status >= 400) {
-		logger.error("makeHttpCall: Error response status=${response.status}, data=${response.data}")
-        throw new Exception("Error response status=${response.status}, data=${response.data}")
+		logger.error("makeHttpCall: Error response uri=${uri} status=${response.status}, data=${response.data}")
+        throw new Exception("Error response uri=${uri} status=${response.status}, data=${response.data}")
 	}
-	logger.trace("makeHttpCall: status=${response.status}, data=${response.data}")
+	logger.trace("makeHttpCall: uri=${uri} status=${response.status}, data=${response.data}")
 	return response.data
 }
 
 def apiUrl() {
-    return "https://security-app.eufylife.com/v1"
+    return state.apiUrl
 }
 
 Map apiRequestHeaders(logger, refreshToken = true) {
 	if (refreshToken && (!state.authToken || now() > atomicState.authTokenExpirationEpochMillis)) {
-		logger.debug("apiRequestHeaders: Renewing access token attempt ${i}")
+		logger.debug("apiRequestHeaders: Renewing access token")
 		if (!login(logger)) {
 			logger.error("apiRequestHeaders: Access token is invalid")
 			throw new Exception("Access token is invalid")

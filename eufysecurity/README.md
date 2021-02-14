@@ -6,7 +6,7 @@ WARNING: Still in Beta
 
 ## Station
 
-* Set mode
+* Read and write guard mode
 * Polls the servers every `pollIntervalSeconds` seconds, where `pollIntervalSeconds` can be  set by the user. Defaults to every 5 minutes.
 
 ### Tested Devices
@@ -16,11 +16,11 @@ WARNING: Still in Beta
 ## Doorbell
 
 * Turn on or off
-* Set mode
-* Set audio recording
-* Set motion detection
-* Set dection type
-* Set dection sensitivity
+* Read and write guard mode
+* Read and write audio recording setting
+* Read and write motion detection setting
+* Read and write dection type setting
+* Read and write dection sensitivity setting
 * Polls the servers every `pollIntervalSeconds` seconds, where `pollIntervalSeconds` can be  set by the user. Defaults to every 5 minutes.
 
 ### Tested Devices
@@ -32,13 +32,13 @@ WARNING: Still in Beta
 WARNING: Needs more testing, seems to have settings overwritten by app.
 
 * Turn on or off
-* Set audio recording
-* Set motion detection
-* Set dection type
-* Set dection sensitivity
-* Set power mode
-* Set record clip length
-* Set record retrigger interval
+* Read and write audio recording setting
+* Read and write motion detection setting
+* Read and write dection type setting
+* Read and write dection sensitivity setting
+* Read and write power mode setting
+* Read and write record clip length setting
+* Read and write record retrigger interval setting
 * Polls the servers every `pollIntervalSeconds` seconds, where `pollIntervalSeconds` can be  set by the user. Defaults to every 5 minutes.
 
 ### Tested Devices

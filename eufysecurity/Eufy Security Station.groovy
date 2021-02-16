@@ -9,6 +9,10 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
+ *	0.0.2 (2020-02-16) [Amos Yuen] Add setting to log param changes for debugging
+ *		- Support hourly and daily poll intervals up to 28 days
+*		- Validate command params properly
+ *	0.0.1 (2020-02-15) [Amos Yuen] - Update helper to support setting multiple params
  *	0.0.0 (2020-02-10) [Amos Yuen] - Initial Release
  */
 
@@ -16,7 +20,7 @@ import groovy.json.JsonOutput
 import groovy.transform.Field
 
 private def textVersion() {
-	return "Version: 0.0.0 - 2020-02-10"
+	return "Version: 0.0.2 - 2020-02-16"
 }
 
 private def textCopyright() {
@@ -24,6 +28,7 @@ private def textCopyright() {
 }
 
 @Field static final int PARAM_TYPE_MODE = 1224
+
 @Field final Map MODE = [
     "0": "away",
     "1": "home",
@@ -56,7 +61,6 @@ metadata {
 			constraints: MODES]]
 		command "setPollIntervalSeconds", [[
 			name: "Seconds",
-			minimum: 0,
 			type: "NUMBER",
 			description: "Interval in seconds to poll the mattress. A value of 0 disables polling. " +
 				"Values greater than 60 will be rounded to the nearest minute."]]
@@ -65,6 +69,7 @@ metadata {
 	preferences {
 		input(name: "debugLogging", type: "bool", title: "Log debug statements", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
 		input(name: "traceLogging", type: "bool", title: "Log trace statements", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
+        input(name: "paramChangeLogging", type: "bool", title: "Log param changes", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
 	}
 }
 
@@ -100,33 +105,55 @@ def setMode(mode) {
     if (!modeValue) {
         throw new Exception("Mode ${mode} is not supported!")
     }
-    setParam(PARAM_TYPE_MODE, modeValue)
+    setHubParams([(PARAM_TYPE_MODE): modeValue])
     refresh()
 }
 
 def setPollIntervalSeconds(seconds) {
     logger.debug("setPollIntervalSeconds: seconds=${seconds}")
 	unschedule(poll)
-	if (seconds > 0) {
-		if (seconds >= 60)  {
-			def minutes = Math.round(seconds / 60) as Integer
-			seconds = minutes * 60
-			schedule("0 */${minutes} * * * ?", poll)
-		} else {
-		  schedule("*/${seconds} * * * * ?", poll)
-		}
-	}
+    if (seconds == null) {
+        seconds = "null"
+    } else {
+        if (seconds < 0) {
+            throw new Exception("Poll interval seconds ${seconds} must be greater than or equal to 0")
+        }
+        if (seconds > 2419200)  {
+            throw new Exception("Poll interval seconds ${seconds} must be less than or equal to 2419200")
+        } 
+	    if (seconds > 0) {
+    		if (seconds >= 86400)  {
+    			def days = Math.round(seconds / 86400) as Integer
+    			seconds = days * 86400
+    			schedule("0 0 0 */${days} * ?", poll)
+    		} else if (seconds >= 3600)  {
+    			def hours = Math.round(seconds / 3600) as Integer
+    			seconds = hours * 3600
+    			schedule("0 0 */${hours} * * ?", poll)
+    		} else if (seconds >= 60)  {
+    			def minutes = Math.round(seconds / 60) as Integer
+    			seconds = minutes * 60
+    			schedule("0 */${minutes} * * * ?", poll)
+    		} else {
+    		  schedule("*/${seconds} * * * * ?", poll)
+    		}
+    	}
+    }
 	sendEvent(name: "pollIntervalSeconds", value: seconds)
 }
 
-def setParam(type, value) {
-    logger.debug("setParam: type=${type}, value=${value}")
+def setHubParams(paramsMap) {
+    logger.debug("setHubParams: paramsMap=${paramsMap}")
+    
+    def params = []
+    paramsMap.each { params.add([param_type: it.key, param_value: it.value.toString()]) }
     
     def body = [
         station_sn: device.deviceNetworkId,
-        params: [[param_type: type, param_value: value.toString()]]
+        params: params,
     ]
     apiPOST("/app/upload_hub_params", body)
+    refreshHubParams()
 }
 
 //
@@ -139,10 +166,10 @@ def poll() {
 
 def refresh() {
 	logger.info("refresh")
-    refreshParams()
+    refreshHubParams()
 }
 
-def refreshParams() {
+def refreshHubParams() {
 	def stations
     try { 
 	    stations = apiPOST("/app/get_hub_list", [ station_sn: device.deviceNetworkId ])
@@ -158,12 +185,13 @@ def refreshParams() {
     def station = stations[0]
     def params = station.params
     for (param in params) {
-        refreshParam(param)
+        refreshHubParam(param)
     }
+    logParamDeltas("hubParams", params)
     return params
 }
 
-def refreshParam(param) {
+def refreshHubParam(param) {
     switch (param.param_type) {
         case PARAM_TYPE_MODE:
             parseEnumParam("mode", MODE, param)
@@ -175,8 +203,39 @@ def parseEnumParam(name, map, param) {
     def value = map[param.param_value]
     if (value == null) {
         logger.error("parseEnumParam: Unsupported param name=${name} value=${param.param_value}")
+        value = "null"
     }
     sendEvent(name: name, value: value, displayed: true)
+}
+
+def logParamDeltas(key, params) {
+    if (!paramChangeLogging) {
+        state.remove(key)
+        return
+    }
+    def init = false
+    if (state[key] == null) {
+        state[key] = [:]
+        init = true
+    }
+    def newParams = [:]
+    def deltas = [:]
+    for (param in params) {
+        def type = param.param_type
+        def oldValue = state[key][type.toString()]
+        def newValue = param.param_value
+        if (newValue != oldValue) {
+            deltas[type] = [
+                old: oldValue,
+                new: newValue,
+            ]
+        }
+        newParams[type.toString()] = newValue
+    }
+    state[key] = newParams
+    if (!init && deltas) {
+        log.info("logParamDeltas: key=${key}, deltas=${deltas}")
+    }
 }
 
 //

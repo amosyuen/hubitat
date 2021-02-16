@@ -23,6 +23,7 @@ WARNING: Writing doesn't work for wireless doorbells connected directly to homeb
 * Read and write motion detection setting
 * Read and write dection type setting
 * Read and write dection sensitivity setting
+* Read and write snooze
 * Polls the servers every `pollIntervalSeconds` seconds, where `pollIntervalSeconds` can be  set by the user. Defaults to every 5 minutes.
 
     ### Tested Devices
@@ -41,6 +42,7 @@ WARNING: Writing doesn't work for cameras connected directly to homebase
 * Read and write power mode setting
 * Read and write record clip length setting
 * Read and write record retrigger interval setting
+* Read and write snooze
 * Polls the servers every `pollIntervalSeconds` seconds, where `pollIntervalSeconds` can be  set by the user. Defaults to every 5 minutes.
 
     ### Tested Devices
@@ -64,6 +66,7 @@ If your device isn't showing up and is a doorbell / camera please do the followi
 ### Device settings not showing up on device page
 If your device settings are not showing on refresh, please do the following:
 1. Enable trace logging in the device page
+1. Click "Save Preferences"
 1. Click refresh on the device page
 1. In your logs for the device look for the logged response right after a "get_devs_list" call. Please PM me that response and explain what setting isn't getting set. If you see any errors, also send those to me.
 
@@ -72,5 +75,6 @@ If your device settings are not showing on refresh, please do the following:
 
 If your device settings are not getting changed do the following:
 1. Enable trace logging in the device page
+1. Click "Save Preferences"
 1. Click refresh on the device page
 1. In your logs for the device look for the logged response right after a "upload_devs_params" call. Please PM me that response and explain what setting isn't getting set. If you see any errors, also send those to me.

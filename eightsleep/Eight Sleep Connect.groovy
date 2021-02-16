@@ -323,7 +323,7 @@ Map apiRequestHeaders(logger, refreshToken = true) {
    		def expirationTime = parseIsoTime(atomicState.expirationDate).getTime()
    		if (now() > expirationTime) {
 			for (i = 0; i < MAX_ACCESS_TOKEN_RENEW_ATTEMPTS; i++) {
-				logger.debug("apiRequestHeaders: Renewing access token attempt ${renewAttempts}")
+				logger.debug("apiRequestHeaders: Renewing access token attempt ${i}")
 				if (getEightSleepAccessToken(logger)) {
 					break
 				}

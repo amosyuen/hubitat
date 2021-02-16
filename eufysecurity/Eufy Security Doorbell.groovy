@@ -9,6 +9,10 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
+ *	0.0.2 (2020-02-16) [Amos Yuen] Add setting to log param changes for debugging
+ *		- Support hourly and daily poll intervals up to 28 days
+*		- Validate command params properly
+ *	0.0.1 (2020-02-15) [Amos Yuen] - Add support for chime and motion snooze
  *	0.0.0 (2020-02-10) [Amos Yuen] - Initial Release
  */
 
@@ -16,20 +20,22 @@ import groovy.json.JsonOutput
 import groovy.transform.Field
 
 private def textVersion() {
-	return "Version: 0.0.0 - 2020-02-10"
+	return "Version: 0.0.2 - 2020-02-16"
 }
 
 private def textCopyright() {
 	return "Copyright © 2021 Amos Yuen"
 }
 
-@Field static final int PARAM_TYPE_MOTION_DETECTION = 2027
-@Field static final int PARAM_TYPE_AUTO_NIGHT_VISION = 2002
-@Field static final int PARAM_TYPE_DETECTION_SENSITIVITY = 2005
 @Field static final int PARAM_TYPE_MODE = 1224
-@Field static final int PARAM_TYPE_DETECTION_TYPE = 2004
-@Field static final int PARAM_TYPE_AUDIO_RECORDING = 2042
+@Field static final int PARAM_TYPE_SNOOZE_TYPE = 1271
 @Field static final int PARAM_TYPE_ON = 2001
+@Field static final int PARAM_TYPE_AUTO_NIGHT_VISION = 2002
+@Field static final int PARAM_TYPE_DETECTION_TYPE = 2004
+@Field static final int PARAM_TYPE_DETECTION_SENSITIVITY = 2005
+@Field static final int PARAM_TYPE_MOTION_DETECTION = 2027
+@Field static final int PARAM_TYPE_SNOOZE_START_SECONDS = 2037
+@Field static final int PARAM_TYPE_AUDIO_RECORDING = 2042
 
 @Field final Map DETECTION_TYPE = [
     "1": "human_and_motion",
@@ -51,6 +57,10 @@ private def textCopyright() {
 ]
 @Field final List MODES = MODE.collect { it.value }
 @Field final Map MODE_REVERSE = MODE.collectEntries { [(it.value): it.key] }
+@Field final String SNOOZE_TYPE_CHIME = "chime"
+@Field final String SNOOZE_TYPE_CHIME_AND_MOTION = "chime_and_motion"
+@Field final String SNOOZE_TYPE_MOTION = "motion"
+@Field final List SNOOZE_TYPES = [SNOOZE_TYPE_MOTION, SNOOZE_TYPE_CHIME, SNOOZE_TYPE_CHIME_AND_MOTION]
 
 metadata {
 	definition (name: "Eufy Security Doorbell", namespace: "amosyuen", author: "Amos Yuen") {
@@ -69,6 +79,9 @@ metadata {
 		attribute "mode", "enum", MODES
 		attribute "motionDetection", "bool"
 		attribute "pollIntervalSeconds", "number"
+		attribute "snoozeType", "enum", SNOOZE_TYPES
+		attribute "snoozeDurationSeconds", "number"
+		attribute "snoozeStartEpochSeconds", "number"
 				
 		command "audioRecordingOn"
 		command "audioRecordingOff"
@@ -79,7 +92,6 @@ metadata {
 
 		command "setDetectionSensitivity", [[
 			name: "sensitivity",
-			minimum: 0,
 			type: "NUMBER",
 			description: "Typically 1 for \"human\" and \"all\" detection types." +
                 " Typically is 1-3 for \"human_and_motion\" detection type"]]
@@ -93,15 +105,25 @@ metadata {
 			constraints: MODES]]
 		command "setPollIntervalSeconds", [[
 			name: "Seconds",
-			minimum: 0,
 			type: "NUMBER",
 			description: "Interval in seconds to poll the mattress. A value of 0 disables polling. " +
 				"Values greater than 60 will be rounded to the nearest minute."]]
+        
+		command "snooze", [[
+            name: "snoozeType*",
+            type: "ENUM",
+            constraints: SNOOZE_TYPES
+        ], [
+            name: "seconds*",
+            type: "NUMBER",
+            description: "Snooze time in seconds"]]
+		command "snoozeClear"
 	}
 
 	preferences {
 		input(name: "debugLogging", type: "bool", title: "Log debug statements", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
 		input(name: "traceLogging", type: "bool", title: "Log trace statements", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
+        input(name: "paramChangeLogging", type: "bool", title: "Log param changes", defaultValue: false, submitOnChange: true, displayDuringSetup: false, required: false)
 	}
 }
 
@@ -133,47 +155,50 @@ def init() {
 
 def on() {
 	logger.debug("on")
-    setParam(PARAM_TYPE_ON, true)
+    setParams([(PARAM_TYPE_ON): true])
 }
 
 def off() {
 	logger.debug("off")
-    setParam(PARAM_TYPE_ON, false)
+    setParams([(PARAM_TYPE_ON): false])
 }
 
 def audioRecordingOn() {
 	logger.debug("audioRecordingOn")
-    setParam(PARAM_TYPE_AUDIO_RECORDING, 1)
+    setParams([(PARAM_TYPE_AUDIO_RECORDING): 1])
 }
 
 def audioRecordingOff() {
 	logger.debug("audioRecordingOff")
-    setParam(PARAM_TYPE_AUDIO_RECORDING, 0)
+    setParams([(PARAM_TYPE_AUDIO_RECORDING): 0])
 }
 
 def autoNightVisionOn() {
 	logger.debug("autoNightVisionOn")
-    setParam(PARAM_TYPE_AUTO_NIGHT_VISION, true)
+    setParams([(PARAM_TYPE_AUTO_NIGHT_VISION): true])
 }
 
 def autoNightVisionOff() {
 	logger.debug("autoNightVisionOff")
-    setParam(PARAM_TYPE_AUTO_NIGHT_VISION, false)
+    setParams([(PARAM_TYPE_AUTO_NIGHT_VISION): false])
 }
 
 def motionDetectionOn() {
 	logger.debug("motionDetectionOn")
-    setParam(PARAM_TYPE_MOTION_DETECTION, 1)
+    setParams([(PARAM_TYPE_MOTION_DETECTION): 1])
 }
 
 def motionDetectionOff() {
 	logger.debug("motionDetectionOff")
-    setParam(PARAM_TYPE_MOTION_DETECTION, 0)
+    setParams([(PARAM_TYPE_MOTION_DETECTION): 0])
 }
 
 def setDetectionSensitivity(value) {
 	logger.debug("setDetectionSensitivity: value=${value}")
-    setParam(PARAM_TYPE_DETECTION_SENSITIVITY, value)
+    if (value < 0) {
+        throw new Exception("Sensitivity ${value} must be at least 0")
+    }
+    setParams([(PARAM_TYPE_DETECTION_SENSITIVITY): value])
 }
 
 def setDetectionType(value) {
@@ -182,7 +207,7 @@ def setDetectionType(value) {
     if (!value) {
         throw new Exception("Detection type ${value} is not supported!")
     }
-    setParam(PARAM_TYPE_DETECTION_TYPE, value)
+    setParams([(PARAM_TYPE_DETECTION_TYPE): value])
 }
 
 def setMode(mode) {
@@ -191,42 +216,108 @@ def setMode(mode) {
     if (!modeValue) {
         throw new Exception("Mode ${mode} is not supported!")
     }
-    setHubParam(PARAM_TYPE_MODE, modeValue)
+    setHubParams([(PARAM_TYPE_MODE): modeValue])
 }
 
 def setPollIntervalSeconds(seconds) {
     logger.debug("setPollIntervalSeconds: seconds=${seconds}")
 	unschedule(poll)
-	if (seconds > 0) {
-		if (seconds >= 60)  {
-			def minutes = Math.round(seconds / 60) as Integer
-			seconds = minutes * 60
-			schedule("0 */${minutes} * * * ?", poll)
-		} else {
-		  schedule("*/${seconds} * * * * ?", poll)
-		}
-	}
+    if (seconds == null) {
+        seconds = "null"
+    } else {
+        if (seconds < 0) {
+            throw new Exception("Poll interval seconds ${seconds} must be greater than or equal to 0")
+        }
+        if (seconds > 2419200)  {
+            throw new Exception("Poll interval seconds ${seconds} must be less than or equal to 2419200")
+        } 
+	    if (seconds > 0) {
+    		if (seconds >= 86400)  {
+    			def days = Math.round(seconds / 86400) as Integer
+    			seconds = days * 86400
+    			schedule("0 0 0 */${days} * ?", poll)
+    		} else if (seconds >= 3600)  {
+    			def hours = Math.round(seconds / 3600) as Integer
+    			seconds = hours * 3600
+    			schedule("0 0 */${hours} * * ?", poll)
+    		} else if (seconds >= 60)  {
+    			def minutes = Math.round(seconds / 60) as Integer
+    			seconds = minutes * 60
+    			schedule("0 */${minutes} * * * ?", poll)
+    		} else {
+    		  schedule("*/${seconds} * * * * ?", poll)
+    		}
+    	}
+    }
 	sendEvent(name: "pollIntervalSeconds", value: seconds)
 }
 
-def setParam(type, value) {
-    logger.debug("setParam: type=${type}, value=${value}")
+def snooze(type, seconds) {
+    logger.debug("snooze: type=${type}, seconds=${seconds}")
+    if (seconds < 1) {
+        throw new Exception("Snooze seconds ${seconds} must be greater than or equal to 1")
+    }
+    def chime = 0
+    def motion = 0
+    switch(type) {
+        case SNOOZE_TYPE_CHIME:
+            chime = 1
+            break
+        case SNOOZE_TYPE_MOTION:
+            motion = 1
+            break
+        case SNOOZE_TYPE_CHIME_AND_MOTION:
+            chime = 1
+            motion = 1
+            break
+        default:
+            throw new Exception("Invalid snooze type ${type}")
+    }
+    def startSeconds = (now() / 1000) as int
+    def snoozeTypeJson = new groovy.json.JsonBuilder([
+        account_id: "",
+        chime_onoff: chime,
+        homebase_onoff: 0,
+        motion_notify_onoff: motion,
+        snooze_time: seconds,
+        startTime: startSeconds
+    ]).toString()
+    logger.debug("snooze: snoozeTypeJson=${snoozeTypeJson}")
+    setParams([
+        (PARAM_TYPE_SNOOZE_START_SECONDS): startSeconds + 1,
+        (PARAM_TYPE_SNOOZE_TYPE): snoozeTypeJson.bytes.encodeBase64().toString(),
+    ])
+}
+
+def snoozeClear() {
+	logger.debug("snoozeClear")
+    setParams([(PARAM_TYPE_SNOOZE_TYPE): ""])
+}
+
+def setParams(paramsMap) {
+    logger.debug("setParams: paramsMap=${paramsMap}")
+    
+    def params = []
+    paramsMap.each { params.add([param_type: it.key, param_value: it.value.toString()]) }
     
     def body = [
         device_sn: device.deviceNetworkId,
         station_sn: device.deviceNetworkId,
-        params: [[param_type: type, param_value: value.toString()]]
+        params: params,
     ]
     apiPOST("/app/upload_devs_params", body)
     refreshParams()
 }
 
-def setHubParam(type, value) {
-    logger.debug("setHubParam: type=${type}, value=${value}")
+def setHubParams(paramsMap) {
+    logger.debug("setHubParams: paramsMap=${paramsMap}")
+    
+    def params = []
+    paramsMap.each { params.add([param_type: it.key, param_value: it.value.toString()]) }
     
     def body = [
         station_sn: device.deviceNetworkId,
-        params: [[param_type: type, param_value: value.toString()]]
+        params: params,
     ]
     apiPOST("/app/upload_hub_params", body)
     refreshHubParams()
@@ -243,7 +334,7 @@ def poll() {
 def refresh() {
 	logger.info("refresh")
     refreshParams()
-    //refreshHubParams()
+    refreshHubParams()
     state.remove("mode")
 }
 
@@ -265,6 +356,7 @@ def refreshParams() {
     for (param in params) {
         refreshParam(param)
     }
+    logParamDeltas("params", params)
     return params
 }
 
@@ -288,6 +380,9 @@ def refreshParam(param) {
         case PARAM_TYPE_MOTION_DETECTION:
             parseIntBooleanParam("motionDetection", param)
             return
+        case PARAM_TYPE_SNOOZE_TYPE:
+            parseSnooze(param)
+            return
     }
 }
 
@@ -309,6 +404,7 @@ def refreshHubParams() {
     for (param in params) {
         refreshHubParam(param)
     }
+    logParamDeltas("hubParams", params)
     return params
 }
 
@@ -321,10 +417,11 @@ def refreshHubParam(param) {
 }
 
 def parseStringBooleanParam(name, param, onValue = true, offValue = false) {
+    def value = param.param_value == "true"
     if (param.param_value != "true" && param.param_value != "false") {
         logger.error("parseStringBooleanParam: Unsupported param name=${name} value=${param.param_value}")
+        value = "null"
     }
-    def value = param.param_value == "true"
     sendEvent(name: name, value: value ? onValue : offValue, displayed: true)
 }
 
@@ -332,6 +429,7 @@ def parseIntBooleanParam(name, param, onValue = true, offValue = false) {
     def value = param.param_value as int
     if (value > 1 || value < 0) {
         logger.error("parseIntBooleanParam: Unsupported param name=${name} value=${param.param_value}")
+        value = "null"
     }
     sendEvent(name: name, value: value == 1 ? onValue : offValue, displayed: true)
 }
@@ -340,6 +438,7 @@ def parseNonNegativeIntParam(name, param) {
     def value = param.param_value as int
     if (value < 0) {
         logger.error("parseNonNegativeInt: Unsupported param name=${name} value=${param.param_value}")
+        value = "null"
     }
     sendEvent(name: name, value: value, displayed: true)
 }
@@ -348,8 +447,77 @@ def parseEnumParam(name, map, param) {
     def value = map[param.param_value]
     if (value == null) {
         logger.error("parseEnumParam: Unsupported param name=${name} value=${param.param_value}")
+        value = "null"
     }
     sendEvent(name: name, value: value, displayed: true)
+}
+
+def decodeBase64Json(value) {
+    if (!value) {
+        return value
+    }
+    def json = new String(value.bytes.decodeBase64())
+    return new groovy.json.JsonSlurper().parseText(json)
+}
+
+def parseSnooze(param) {
+    logger.trace("parseSnooze param=${param}")
+    def snoozeType = "null"
+    def snoozeDurationSeconds = 0
+    def snoozeStartEpochSeconds = 0
+    if (param.param_value.size() > 0) { 
+        def data = decodeBase64Json(param.param_value)
+        logger.trace("parseSnooze data=${data}")
+        def chime = data.chime_onoff == 1
+        def motion = data.motion_on_off == 1
+        if (chime) {
+            if (motion) {
+                snoozeType = SNOOZE_TYPE_CHIME_AND_MOTION
+            } else {
+                snoozeType = SNOOZE_TYPE_CHIME
+            }
+        } else {
+            snoozeType = SNOOZE_TYPE_MOTION
+        }
+        snoozeDurationSeconds = data.snooze_time
+        snoozeStartEpochSeconds = data.startTime
+    }
+    sendEvent(name: "snoozeType", value: snoozeType, displayed: true)
+    sendEvent(name: "snoozeDurationSeconds", value: snoozeDurationSeconds, displayed: true)
+    sendEvent(name: "snoozeStartEpochSeconds", value: snoozeStartEpochSeconds, displayed: true)
+}
+
+def logParamDeltas(key, params) {
+    if (!paramChangeLogging) {
+        state.remove(key)
+        return
+    }
+    def init = false
+    if (state[key] == null) {
+        state[key] = [:]
+        init = true
+    }
+    def newParams = [:]
+    def deltas = [:]
+    for (param in params) {
+        def type = param.param_type
+        def oldValue = state[key][type.toString()]
+        def newValue = param.param_value
+        if (param.param_type == PARAM_TYPE_SNOOZE_TYPE) {
+            newValue = decodeBase64Json(newValue)
+        }
+        if (newValue != oldValue) {
+            deltas[type] = [
+                old: oldValue,
+                new: newValue,
+            ]
+        }
+        newParams[type.toString()] = newValue
+    }
+    state[key] = newParams
+    if (!init && deltas) {
+        log.info("logParamDeltas: key=${key}, deltas=${deltas}")
+    }
 }
 
 //

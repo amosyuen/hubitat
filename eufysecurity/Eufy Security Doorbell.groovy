@@ -9,6 +9,7 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
+ *	0.0.3 (2020-02-16) [Amos Yuen] Fix snooze not clearing after snooze duration
  *	0.0.2 (2020-02-16) [Amos Yuen] Add setting to log param changes for debugging
  *		- Support hourly and daily poll intervals up to 28 days
 *		- Validate command params properly
@@ -20,7 +21,7 @@ import groovy.json.JsonOutput
 import groovy.transform.Field
 
 private def textVersion() {
-	return "Version: 0.0.2 - 2020-02-16"
+	return "Version: 0.0.3 - 2020-02-16"
 }
 
 private def textCopyright() {
@@ -481,7 +482,12 @@ def parseSnooze(param) {
         }
         snoozeDurationSeconds = data.snooze_time
         snoozeStartEpochSeconds = data.startTime
-    }
+		// NOTE: Eufy normally clears it some other way, we clear it by just running a timer
+		def secondsToWait = Math.max(1, (snoozeStartEpochSeconds + snoozeDurationSeconds) - ((now() / 1000) as int))
+		runIn(secondsToWait, snoozeClear)
+    } else {
+		unschedule(snoozeClear)
+	}
     sendEvent(name: "snoozeType", value: snoozeType, displayed: true)
     sendEvent(name: "snoozeDurationSeconds", value: snoozeDurationSeconds, displayed: true)
     sendEvent(name: "snoozeStartEpochSeconds", value: snoozeStartEpochSeconds, displayed: true)

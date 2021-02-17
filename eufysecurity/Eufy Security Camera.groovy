@@ -9,6 +9,7 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
+ *	0.0.3 (2020-02-16) [Amos Yuen] Fix snooze not clearing after snooze duration
  *	0.0.2 (2020-02-16) [Amos Yuen] Add setting to log param changes for debugging
  *		- Support hourly and daily poll intervals up to 28 days
 *		- Validate command params properly
@@ -20,7 +21,7 @@ import groovy.json.JsonOutput
 import groovy.transform.Field
 
 private def textVersion() {
-	return "Version: 0.0.2 - 2020-02-16"
+	return "Version: 0.0.3 - 2020-02-16"
 }
 
 private def textCopyright() {
@@ -273,6 +274,7 @@ def snooze(seconds) {
     def snoozeTypeJson = new groovy.json.JsonBuilder([
         account_id: "",
         snooze_time: seconds,
+        startTime: startSeconds,
     ]).toString()
     logger.debug("snooze: snoozeTypeJson=${snoozeTypeJson}")
     setParams([
@@ -420,11 +422,19 @@ def decodeBase64Json(value) {
 
 def parseSnooze(param) {
     logger.trace("parseSnooze param=${param}")
+	unschedule(snoozeClear)
     def snoozeDurationSeconds = 0
     if (param.param_value.size() > 0) { 
         def data = decodeBase64Json(param.param_value)
         logger.trace("parseSnooze data=${data}")
         snoozeDurationSeconds = data.snooze_time
+        snoozeStartEpochSeconds = data.startTime
+		if (snoozeStartEpochSeconds) {
+			// startTime only exists if snooze was started from hubitat
+			// NOTE: Eufy normally clears it some other way, we clear it by just running a timer
+			def secondsToWait = Math.max(1, (snoozeStartEpochSeconds + snoozeDurationSeconds) - ((now() / 1000) as int))
+			runIn(secondsToWait, snoozeClear)
+		}
     }
     sendEvent(name: "snoozeDurationSeconds", value: snoozeDurationSeconds, displayed: true)
 }

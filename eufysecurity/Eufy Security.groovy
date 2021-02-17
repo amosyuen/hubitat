@@ -11,6 +11,8 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY 
+ *	0.0.3 (2020-02-16) [Amos Yuen] Another fix for two factor auth.
+ *		- Have code re-login if domain changed on login.
  *	0.0.2 (2020-02-16) [Amos Yuen]
  *		- Fix bug in setting API URL
  *		- Add option to reset base API URL
@@ -20,7 +22,7 @@
 import groovy.transform.Field
 
 private def textVersion() {
-	return "Version: 0.0.2 - 2020-02-16"
+	return "Version: 0.0.3 - 2020-02-16"
 }
 
 private def textCopyright() {
@@ -265,6 +267,16 @@ private def login(logger = logger, loginScreen = false) {
 		return false
 	}
     
+    def domainChange = false
+    if (data.data.domain) {
+        def newApiUrl = "https://${data.data.domain}/v1"
+        if (newApiUrl != state.apiUrl) {
+            state.apiUrl = newApiUrl
+            logger.info("login: Changing base API URL to ${newApiUrl}")
+            domainChange = true
+        }
+    }
+    
     if (data.code != 0) {
         if (loginScreen && data.code == 26052) {
     		try {
@@ -276,23 +288,19 @@ private def login(logger = logger, loginScreen = false) {
     			setLoginError("Error requesting two factor auth code: ${e}")
     		}
             return false
-    	} else {
-    		setLoginError(getErrorMessage(data))
-            return false
-        }
+    	}
+        setLoginError(getErrorMessage(data))
+        return false
     }
     
-    if (data.data.domain) {
-        def newApiUrl = "https://${data.data.domain}/v1"
-        if (newApiUrl != state.apiUrl) {
-            state.apiUrl = newApiUrl
-            logger.info("login: Changing base API URL to ${newApiUrl}")
-        }
+    if (domainChange) {
+        // Need to re-login if domain changed
+        return login(logger, loginScreen)
     }
     
-    setAuthToken(data)
 	setLoginError(null)
     state.remove("needAuthCode")
+    setAuthToken(data)
     
 	return true
 }
@@ -488,8 +496,8 @@ private def apiPOST(path, body = [:]) {
 	return makeHttpCallAndHandleCode("httpPost", path, body)
 }
 
-private def makeHttpCallAndHandleCode(methodFn, path, body = [:]) {
-    def data = makeHttpCall(methodFn, path, body)
+private def makeHttpCallAndHandleCode(methodFn, path, body = [:], refreshToken = true) {
+    def data = makeHttpCall(methodFn, path, body, refreshToken)
 	if (data.code != 0) {
         def errorMessage = getErrorMessage(data)
         logger.error("makeHttpCallAndHandleCode: ${errorMessage}")

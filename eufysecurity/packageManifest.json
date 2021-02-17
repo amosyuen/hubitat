@@ -1,9 +1,10 @@
 {
 	"packageName": "Eufy Security (Alpha)",
 	"author": "Amos Yuen",
-	"version": "0.0.2",
+	"version": "0.0.3",
 	"minimumHEVersion": "0.0",
 	"dateReleased": "2021-02-16",
+	"releaseNotes" : "Fix two factor auth adding trusted device and automatically re-login after domain changes.",
 	"documentationLink": "https://github.com/amosyuen/hubitat/blob/main/eufysecurity/README.md",
 	"communityLink": "https://community.hubitat.com/t/release-eufy-security-alpha/65487",
 	"apps": [
@@ -15,7 +16,7 @@
 			"required": true,
 			"oauth": false,
 			"primary": true,
-			"version": "0.0.2"
+			"version": "0.0.3"
 		}
 	],
 	"drivers": [
@@ -25,7 +26,7 @@
 			"namespace": "amosyuen",
 			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/eufysecurity/Eufy%20Security%20Camera.groovy",
 			"required": true,
-			"version": "0.0.2"
+			"version": "0.0.3"
 		},
 		{
 			"id": "48ab58e4-6b85-11eb-9439-0242ac130002",
@@ -33,7 +34,7 @@
 			"namespace": "amosyuen",
 			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/eufysecurity/Eufy%20Security%20Doorbell.groovy",
 			"required": true,
-			"version": "0.0.2"
+			"version": "0.0.3"
 		},
 		{
 			"id": "458fd590-6b85-11eb-9439-0242ac130002",

@@ -3,12 +3,9 @@
 	"author": "Amos Yuen",
 	"version": "0.0.2",
 	"minimumHEVersion": "0.0",
-<<<<<<< HEAD
-	"dateReleased": "2021-02-15",
-=======
 	"dateReleased": "2021-02-16",
->>>>>>> 331263a (Add setting to log param changes for debugging)
 	"documentationLink": "https://github.com/amosyuen/hubitat/blob/main/eufysecurity/README.md",
+	"communityLink": "https://community.hubitat.com/t/release-eufy-security-alpha/65487",
 	"apps": [
 		{
 			"id": "c427d570-2c3a-4786-b5f5-c10344146bc8",
@@ -18,7 +15,7 @@
 			"required": true,
 			"oauth": false,
 			"primary": true,
-			"version": "0.0.1"
+			"version": "0.0.2"
 		}
 	],
 	"drivers": [

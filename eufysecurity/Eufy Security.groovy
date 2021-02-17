@@ -11,13 +11,16 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY 
+ *	0.0.2 (2020-02-16) [Amos Yuen]
+ *		- Fix bug in setting API URL
+ *		- Add option to reset base API URL
  *	0.0.1 (2020-02-15) [Amos Yuen] - Fix bug in requesting two factor auth code. Use domain returned in login for api endpoint.
  *	0.0.0 (2020-02-10) [Amos Yuen] - Initial Release
  */
 import groovy.transform.Field
 
 private def textVersion() {
-	return "Version: 0.0.1 - 2020-02-15"
+	return "Version: 0.0.2 - 2020-02-16"
 }
 
 private def textCopyright() {
@@ -40,15 +43,17 @@ preferences {
 	page(name: "selectDevicePage")
 }
 
+@Field static final String BASE_API_URL = "https://mysecurity.eufylife.com/api/v1"
+
 def mainPage() {
 	return dynamicPage(name: "mainPage", title: "", install: true, uninstall: true) {
         if (app.getInstallationState() == 'COMPLETE') {
-    		def isLoggedIn = state.authToken && !state.needAuthCode
+    		def loggedIn = isLoggedIn()
     		section("<b>Credentials</b>") {
     			href("credentialsPage",
     				title: "Eufy Security Account Credentials",
-    				description: isLoggedIn ? "Authenticated as " + email : "Unauthenticated",
-    				state: isLoggedIn)
+    				description: loggedIn ? "Authenticated as " + email : "Unauthenticated",
+    				state: loggedIn)
     		}
     
     		if (email != null && password != null) {
@@ -67,7 +72,7 @@ def mainPage() {
     			}
     		}
 
-		    section("<b>Debug</b>") {
+		    section("<b>Debugging</b>") {
 			    input("debugLogging", "bool", title: "Log debug statements", defaultValue: true, submitOnChange: true)
 			    input("traceLogging", "bool", title: "Log trace statements", defaultValue: false, submitOnChange: true)
 		    }
@@ -103,6 +108,10 @@ def credentialsPage() {
                     paragraph("Successfully connected to Eufy Security.")
 				}
 			}
+		}
+
+		section("<b>Debugging</b>") {
+			input("resetApiUrl", "button", title: "Reset base API URL. Please re-login afterwards.")
 		}
 
 		section { footerParagraph() }
@@ -165,6 +174,10 @@ def appButtonHandler(buttonPressed) {
         case "requestAuthCode":
             requestAuthCode()
             break
+		case "resetApiUrl":
+			state.apiUrl = BASE_API_URL
+			logger.info("appButtonHandler: Resetting base API URL to ${BASE_API_URL}")
+			break
     }
 }
 
@@ -179,13 +192,20 @@ def updated() {
 	initialize()
 }
 
+def isLoggedIn() {
+	return state.authToken && !state.needAuthCode
+}
+
 def initialize() {
 	logger.debug("initialize")
-    
+
     if (!state.apiUrl) {
-        state.apiUrl = "https://security-app.eufylife.com/v1"
+        state.apiUrl = BASE_API_URL
     }
-    
+	if (!isLoggedIn()) {
+		return
+	}
+
 	def deviceData = updateDeviceList(returnDeviceData: true)
     syncChildDevices(deviceData)
 	getChildDevices()*.refresh()
@@ -262,13 +282,17 @@ private def login(logger = logger, loginScreen = false) {
         }
     }
     
-    if (data.domain) {
-        state.apiUrl = "https://${data.domain}/v1"
+    if (data.data.domain) {
+        def newApiUrl = "https://${data.data.domain}/v1"
+        if (newApiUrl != state.apiUrl) {
+            state.apiUrl = newApiUrl
+            logger.info("login: Changing base API URL to ${newApiUrl}")
+        }
     }
     
     setAuthToken(data)
 	setLoginError(null)
-    state.needAuthCode = false
+    state.remove("needAuthCode")
     
 	return true
 }
@@ -376,6 +400,7 @@ def isCamera(deviceType) {
 }
 
 def updateDeviceList(returnDeviceData = false) {
+	logger.info("updateDeviceList")
 	if (!state.devices) {
 		state.devices = [:]
     }
@@ -507,6 +532,9 @@ private def makeHttpCall(methodFn, path, body = [:], refreshToken = true) {
 }
 
 def apiUrl() {
+    if (!state.apiUrl) {
+        state.apiUrl = BASE_API_URL
+    }
     return state.apiUrl
 }
 

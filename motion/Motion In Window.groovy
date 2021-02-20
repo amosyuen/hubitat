@@ -10,11 +10,12 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language ginning permissions and limitations under the License.
  *
+ * 1.0.1 [Amos Yuen] Fix bug with push queu not getting cleared
  * 1.0.0 [Amos Yuen] Initial Version
  */
 
 def appVersion() {
-	return "1.0.0"
+	return "1.0.1"
 }
 
 definition(
@@ -77,13 +78,13 @@ def init() {
 	}
 }
 
-def updateEvents(newEvent = null) {
+def updateEvents(newEventMillis = null) {
 	def eventsPop = atomicState.eventsPop
 	def eventsPush = atomicState.eventsPush
 	def nowMillis = now()
 	def windowMillis = windowSeconds * 1000
-	if (newEvent) {
-		eventsPush.add(newEvent)
+	if (newEventMillis) {
+		eventsPush.add(newEventMillis)
 	}
 	for (def i = eventsPop.size() - 1; i >= 0; i--) {
 		if (nowMillis - eventsPop[i] <= windowMillis) {
@@ -96,12 +97,15 @@ def updateEvents(newEvent = null) {
 			def millis = eventsPush[i]
 			if (nowMillis - millis <= windowMillis) {
 				eventsPop.add(millis)
-				eventsPush.remove(i)
-			}
+                eventsPush.remove(i)
+            }
 		}
+        eventsPush.clear()
 	}
 	atomicState.eventsPop = eventsPop
 	atomicState.eventsPush = eventsPush
+    log.trace("updateEvents: eventsPop=${eventsPop}")
+    log.trace("updateEvents: eventsPush=${eventsPush}")
 
 	def value = eventsPop.size() + eventsPush.size() >= numberOfMotionEvents ? "active" : "inactive"
 	def child = getChildDevice(getChildId())
@@ -109,8 +113,8 @@ def updateEvents(newEvent = null) {
 }
 
 def motionSensorHandler(evt) {
-	logDebug("motionSensorHandler: deviceId=${evt.getDevice()} ${evt.name}=${evt.value} @ ${evt.time}")
-	//updateEvents(evt.time())
+	logDebug("motionSensorHandler: deviceId=${evt.getDevice()} ${evt.name}=${evt.value} @ ${evt.getUnixTime()}")
+	updateEvents(evt.getUnixTime())
 }
 
 /**

@@ -10,12 +10,13 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language ginning permissions and limitations under the License.
  *
- * 1.0.1 [Amos Yuen] Fix bug with push queu not getting cleared
+ * 1.0.2 [Amos Yuen] Fix bug with queue not getting updated after window passes
+ * 1.0.1 [Amos Yuen] Fix bug with push queue not getting cleared
  * 1.0.0 [Amos Yuen] Initial Version
  */
 
 def appVersion() {
-	return "1.0.1"
+	return "1.0.2"
 }
 
 definition(
@@ -41,7 +42,7 @@ def mainPage() {
 	  	section ("<b>Options</b>") {
 			input "motionSensors", "capability.motionSensor", title: "Motion Sensors", repeated: true, required: true
 			input "numberOfMotionEvents", "number", title: "Number of motion events within window required to trigger active", min: 1, defaultValue: 2, required: true
-			input "windowSeconds", "number", title: "Window in seconds", min: "1", required: true
+			input "windowSeconds", "number", title: "Window in seconds", min: 1, required: true
 		}
 		section("<b>Debug</b>") {
 			input "debugLog", "bool", title: "Log debug statements", defaultValue: false, submitOnChange: true
@@ -107,9 +108,21 @@ def updateEvents(newEventMillis = null) {
     log.trace("updateEvents: eventsPop=${eventsPop}")
     log.trace("updateEvents: eventsPush=${eventsPush}")
 
-	def value = eventsPop.size() + eventsPush.size() >= numberOfMotionEvents ? "active" : "inactive"
+    int index = (eventsPop.size() + eventsPush.size() - numberOfMotionEvents) as int
+    boolean active = index >= 0
+    log.debug("updateEvents: active=${active}")
+	String value = active ? "active" : "inactive"
 	def child = getChildDevice(getChildId())
 	child?.sendEvent(name: "motion", value: value, displayed: true)
+    
+    if (active) {
+        def millis = index < eventsPop.size()
+                ? eventsPop[eventsPop.size() - 1 - index]
+                : eventsPush[index - eventsPop.size()]
+        def waitMillis = millis + windowSeconds * 1000 - nowMillis
+        runInMillis(waitMillis, updateEvents)
+        log.debug("updateEvents: run update in ${waitMillis} millis")
+    }
 }
 
 def motionSensorHandler(evt) {

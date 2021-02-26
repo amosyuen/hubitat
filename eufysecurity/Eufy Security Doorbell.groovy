@@ -9,6 +9,7 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
+ *	0.0.4 (2020-02-26) [Amos Yuen] Fix wireless doorbell getting error when reading hub params
  *	0.0.3 (2020-02-16) [Amos Yuen] Fix snooze not clearing after snooze duration
  *	0.0.2 (2020-02-16) [Amos Yuen] Add setting to log param changes for debugging
  *		- Support hourly and daily poll intervals up to 28 days
@@ -21,7 +22,7 @@ import groovy.json.JsonOutput
 import groovy.transform.Field
 
 private def textVersion() {
-	return "Version: 0.0.3 - 2020-02-16"
+	return "Version: 0.0.4 - 2020-02-26"
 }
 
 private def textCopyright() {
@@ -213,6 +214,10 @@ def setDetectionType(value) {
 
 def setMode(mode) {
 	logger.debug("setMode: mode=${mode}")
+	if (!isStation()) {
+		throw new Exception("Doorbell does not have hub mode. Please change mode through the station instead.")
+	}
+
     def modeValue = MODE_REVERSE[mode]
     if (!modeValue) {
         throw new Exception("Mode ${mode} is not supported!")
@@ -303,7 +308,7 @@ def setParams(paramsMap) {
     
     def body = [
         device_sn: device.deviceNetworkId,
-        station_sn: device.deviceNetworkId,
+        station_sn: state.stationSN,
         params: params,
     ]
     apiPOST("/app/upload_devs_params", body)
@@ -317,7 +322,7 @@ def setHubParams(paramsMap) {
     paramsMap.each { params.add([param_type: it.key, param_value: it.value.toString()]) }
     
     def body = [
-        station_sn: device.deviceNetworkId,
+        station_sn: state.stationSN,
         params: params,
     ]
     apiPOST("/app/upload_hub_params", body)
@@ -332,10 +337,16 @@ def poll() {
 	refresh()
 }
 
+def isStation() {
+	return state.stationSN != null && state.stationSN != device.deviceNetworkId
+}
+
 def refresh() {
 	logger.info("refresh")
     refreshParams()
-    refreshHubParams()
+	if (isStation()) {
+    	refreshHubParams()
+	}
     state.remove("mode")
 }
 
@@ -353,6 +364,7 @@ def refreshParams() {
     
     sendEvent(name: "presence", value: "present", displayed: true)
     def device = devices[0]
+    state.stationSN = device.station_sn
     def params = device.params
     for (param in params) {
         refreshParam(param)
@@ -390,16 +402,14 @@ def refreshParam(param) {
 def refreshHubParams() {
 	def stations
     try { 
-	    stations = apiPOST("/app/get_hub_list", [ station_sn: device.deviceNetworkId ])
+	    stations = apiPOST("/app/get_hub_list", [ station_sn: state.stationSN ])
         if (stations.size() == 0) {
-            throw new Exception("Eufy security station ${device.deviceNetworkId} not associated with account!")
+            throw new Exception("Eufy security station ${state.stationSN} not associated with account!")
         }
     } catch (Exception e) {
-        sendEvent(name: "presence", value: "not present", displayed: true)
         throw e
     }
     
-    sendEvent(name: "presence", value: "present", displayed: true)
     def station = stations[0]
     def params = station.params
     for (param in params) {

@@ -1,10 +1,10 @@
 {
 	"packageName": "Eufy Security (Alpha)",
 	"author": "Amos Yuen",
-	"version": "0.0.3",
+	"version": "0.0.4",
 	"minimumHEVersion": "0.0",
 	"dateReleased": "2021-02-16",
-	"releaseNotes" : "Fix two factor auth adding trusted device and automatically re-login after domain changes.",
+	"releaseNotes" : "Fix wireless doorbell getting error when reading hub params.",
 	"documentationLink": "https://github.com/amosyuen/hubitat/blob/main/eufysecurity/README.md",
 	"communityLink": "https://community.hubitat.com/t/release-eufy-security-alpha/65487",
 	"apps": [
@@ -34,7 +34,7 @@
 			"namespace": "amosyuen",
 			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/eufysecurity/Eufy%20Security%20Doorbell.groovy",
 			"required": true,
-			"version": "0.0.3"
+			"version": "0.0.4"
 		},
 		{
 			"id": "458fd590-6b85-11eb-9439-0242ac130002",

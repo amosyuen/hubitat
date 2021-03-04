@@ -41,12 +41,15 @@ def mainPage() {
             label(name: "name", title: "App Name", required: true, defaultValue: app.name)
         }
         
-        section ("<b>Lights</b>") {
+        section ("<b>Devices</b>") {
             input("lights", "capability.switchLevel", title: "Lights to fade",
-                  required: true, multiple: true)
+                  multiple: true, submitOnChange: true)
+            input("thermostats", "capability.thermostatHeatingSetpoint", title: "Thermostat to heat",
+                  multiple: true, submitOnChange: true)
         }
         
-        section ("<b>Warmup</b>") {
+        if (lights) {
+        section ("<b>Lights Warmup</b>") {
             paragraph("Light fading before wake up")
             
             input("lightFadeSecondsWarmup", "number", title: "Warmup seconds to fade light",
@@ -71,7 +74,7 @@ def mainPage() {
 			}
         }
         
-        section ("<b>Wakeup</b>") {
+        section ("<b>Lights Wakeup</b>") {
             input("lightFadeSecondsStart", "number", title: "Wakeup seconds to fade light value",
                   required: true, min: 0, defaultValue: 180, submitOnChange: true)
 			if (lightFadeSecondsStart > 0) {
@@ -95,6 +98,13 @@ def mainPage() {
 				input("snoozeFadeTimeRatio", "decimal", title: "Ratio to reduce fade light time on each snooze",
                       required: true, min: 0, max: 1, defaultValue: 0.5)
 			}
+        }
+        }
+        
+        if (thermostats) {
+            section ("<b>Thermostat</b>") {
+                input("thermostatsHeatingSetpoint", "number", title: "Thermostat heat temperature", required: true)
+            }
         }
 
         section("<b>Debugging</b>") {
@@ -139,8 +149,10 @@ def init() {
         setSnoozeCount(0)
     }
     
-	subscribe(lights, "switch.off", switchOffHandler)
-	subscribe(level, "level", levelHandler)
+    if (lights) {
+	    subscribe(lights, "switch.off", switchOffHandler)
+	    subscribe(lights, "level", levelHandler)
+    }
 }
 
 //
@@ -197,9 +209,15 @@ def warmup() {
     
     setState(WARMUP)
     setSnoozeCount(0)
+    if (thermostats) {
+        setThermostats()
+    }
+    
 	def millis = now()
 	atomicState.startMillis = millis
-	updateLightsWarmup(millis)
+    if (lights) {
+	    updateLightsWarmup(millis)
+    }
 }
 
 def start() {
@@ -210,9 +228,15 @@ def start() {
     }
     
     setState(STARTED)
+    if (thermostats) {
+        setThermostats()
+    }
+    
 	def millis = now()
 	atomicState.startMillis = millis
-	updateLightsWakeup(millis)
+    if (lights) {
+	    updateLightsWakeup(millis)
+    }
 }
 
 def snooze() {
@@ -224,7 +248,9 @@ def snooze() {
     	setSnoozeCount(atomicState.snoozeCount + 1)
 	}
     setState(SNOOZED)
-    lights.setLevel(0)
+    if (lights) {
+        lights.setLevel(0)
+    }
 }
 
 def finish() {
@@ -258,6 +284,10 @@ def setSnoozeCount(snoozeCount) {
 		return
 	}
 	child.sendEvent(name: "snoozeCount", value: snoozeCount, displayed: true)
+}
+
+def setThermostats() {
+    thermostats.setHeatingSetpoint(thermostatsHeatingSetpoint)
 }
 
 def setFadeProgress(progress) {    

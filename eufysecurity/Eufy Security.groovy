@@ -11,6 +11,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY 
+ *	0.0.5 (2020-03-09) [Amos Yuen] Decode all base64 params for log param changes
  *	0.0.3 (2020-02-16) [Amos Yuen] Another fix for two factor auth.
  *		- Have code re-login if domain changed on login.
  *	0.0.2 (2020-02-16) [Amos Yuen]
@@ -22,7 +23,7 @@
 import groovy.transform.Field
 
 private def textVersion() {
-	return "Version: 0.0.3 - 2020-02-16"
+	return "Version: 0.0.5 - 2020-03-09"
 }
 
 private def textCopyright() {
@@ -754,10 +755,12 @@ private def registerGCM() {
 
 // Helpers
 
-def parseIsoTime(time) {
-	def dateFormat = new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
-	dateFormat.setTimeZone(TimeZone.getTimeZone("UTC"))
-	return dateFormat.parse(time)
+def decodeBase64Json(String value) {
+    if (!value) {
+        return value
+    }
+    def json = new String(value.bytes.decodeBase64())
+    return new groovy.json.JsonSlurper().parseText(json)
 }
 
 @Field final Map logger = [

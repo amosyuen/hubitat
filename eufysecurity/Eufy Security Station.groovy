@@ -9,6 +9,7 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
+ *	0.0.5 (2020-03-09) [Amos Yuen] Decode all base64 params for log param changes
  *	0.0.2 (2020-02-16) [Amos Yuen] Add setting to log param changes for debugging
  *		- Support hourly and daily poll intervals up to 28 days
 *		- Validate command params properly
@@ -20,7 +21,7 @@ import groovy.json.JsonOutput
 import groovy.transform.Field
 
 private def textVersion() {
-	return "Version: 0.0.2 - 2020-02-16"
+	return "Version: 0.0.5 - 2020-03-09"
 }
 
 private def textCopyright() {
@@ -46,7 +47,6 @@ private def textCopyright() {
 metadata {
 	definition (name: "Eufy Security Station", namespace: "amosyuen", author: "Amos Yuen") {
 		capability "Actuator"
-		capability "Battery"
 		capability "Presence Sensor"
 		capability "Polling"
 		capability "Refresh"
@@ -224,6 +224,16 @@ def logParamDeltas(key, params) {
         def type = param.param_type
         def oldValue = state[key][type.toString()]
         def newValue = param.param_value
+        switch (type) {
+            case 1158:
+            case 1159:
+            case 1160:
+            case 1204:
+            case 1254:
+            case 1256:
+                newValue = parent.decodeBase64Json(newValue)
+                break
+        }
         if (newValue != oldValue) {
             deltas[type] = [
                 old: oldValue,

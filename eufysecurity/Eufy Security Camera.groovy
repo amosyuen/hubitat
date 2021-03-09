@@ -9,6 +9,8 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
+ *	0.0.5 (2020-03-09) [Amos Yuen] Add support for battery
+ *		- Decode all base64 params for log param changes
  *	0.0.3 (2020-02-16) [Amos Yuen] Fix snooze not clearing after snooze duration
  *	0.0.2 (2020-02-16) [Amos Yuen] Add setting to log param changes for debugging
  *		- Support hourly and daily poll intervals up to 28 days
@@ -21,7 +23,7 @@ import groovy.json.JsonOutput
 import groovy.transform.Field
 
 private def textVersion() {
-	return "Version: 0.0.3 - 2020-02-16"
+	return "Version: 0.0.5 - 2020-03-09"
 }
 
 private def textCopyright() {
@@ -30,6 +32,7 @@ private def textCopyright() {
 
 @Field static final int PARAM_TYPE_MOTION_DETECTION = 1011
 @Field static final int PARAM_TYPE_AUTO_NIGHT_VISION = 1013
+@Field static final int PARAM_TYPE_BATTERY = 1101
 @Field static final int PARAM_TYPE_DETECTION_SENSITIVITY = 1210 // low value is high sensitivity
 @Field static final int PARAM_TYPE_POWER_MODE = 1246
 @Field static final int PARAM_TYPE_RECORD_CLIP_LENGTH = 1249
@@ -361,6 +364,9 @@ def refreshParam(param) {
         case PARAM_TYPE_AUTO_NIGHT_VISION:
             parseBooleanParam("autoNightVision", param)
             return
+        case PARAM_TYPE_BATTERY:
+            parseNonNegativeIntParam("battery", param)
+            return
         case PARAM_TYPE_DETECTION_SENSITIVITY:
             parseNonNegativeIntParam("detectionSensitivity", param)
             return
@@ -412,20 +418,12 @@ def parseEnumParam(name, map, param) {
     sendEvent(name: name, value: value, displayed: true)
 }
 
-def decodeBase64Json(value) {
-    if (!value) {
-        return value
-    }
-    def json = new String(value.bytes.decodeBase64())
-    return new groovy.json.JsonSlurper().parseText(json)
-}
-
 def parseSnooze(param) {
     logger.trace("parseSnooze param=${param}")
 	unschedule(snoozeClear)
     def snoozeDurationSeconds = 0
     if (param.param_value.size() > 0) { 
-        def data = decodeBase64Json(param.param_value)
+        def data = parent.decodeBase64Json(param.param_value)
         logger.trace("parseSnooze data=${data}")
         snoozeDurationSeconds = data.snooze_time
         snoozeStartEpochSeconds = data.startTime
@@ -455,8 +453,11 @@ def logParamDeltas(key, params) {
         def type = param.param_type
         def oldValue = state[key][type.toString()]
         def newValue = param.param_value
-        if (param.param_type == PARAM_TYPE_SNOOZE_TYPE) {
-            newValue = decodeBase64Json(newValue)
+        switch (type) {
+            case PARAM_TYPE_SNOOZE_TYPE:
+            case 1204:
+                newValue = parent.decodeBase64Json(newValue)
+                break
         }
         if (newValue != oldValue) {
             deltas[type] = [

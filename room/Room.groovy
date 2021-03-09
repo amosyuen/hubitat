@@ -24,14 +24,20 @@ import groovy.transform.Field
 
 @Field final String ICONS_URL = "https://cdn.rawgit.com/adey/bangali/master/resources/icons/"
 @Field final Integer IMG_SIZE = 36
-// Ignore any light changes wihtin this millis right after an occupancy transition 
-@Field final Integer OCCUPANCY_TRANSITION_IGNORE_MILLIS = 500
-// How many millis to count light changes as part of the occupancy transition
-@Field final Integer OCCUPANCY_TRANSITION_MILLIS = 15000
+// Ignore any light changes within this millis right after an occupancy transition 
+@Field final Integer OCCUPANCY_TRANSITION_IGNORE_MILLIS = 1000
+// Any changes after this many millis are automatically user changes
+@Field final Integer OCCUPANCY_TRANSITION_MAX_MILLIS = 15000
 @Field final Integer LIGHT_CHANGE_DELAY_SECONDS = 1
 @Field final Integer MIN_RETRIGGER_INTERVAL_MILLIS = 500
 @Field final Integer NIGHT_LIGHT_DELAY_SECONDS = 1
 @Field final Float KEEP_LIGHTS_OFF_SECONDS = 20
+@Field final Map OCCUPANCY_ENUM_VALUE = [
+    vacant: 0,
+    checking: 1,
+    occupied: 2,
+    engaged: 3
+]
 
 def appVersion() {
 	return "1.0.0"
@@ -179,6 +185,7 @@ def pageEngaged() {
 		section("Timeout")	{
 			paragraph "Changes state to checking if there is no activity in the timeout period"
 			input "engagedTimeoutSeconds", "number", title: "Timeout in seconds", defaultValue: 4800, range: "1..*"
+            input "engagedTimeoutPreventSwitches", "capability.switch", title: "Prevent timeout if any switch is on", multiple: true, required: false
 		}
 	}
 }
@@ -286,7 +293,9 @@ def init() {
         return
     }
 	
-	subscribe(location, "mode", locationModeHandler)
+    if (occupiedModes || vacantModes || nightModes) {
+	    subscribe(location, "mode", locationModeHandler)
+    }
 	subscribe(lightSensors, "illuminance", lightSensorHandler)
 	
 	subscribe(contactSensors, "contact", contactSensorHandler)
@@ -390,14 +399,14 @@ def updateChildMotion(motion = null)	{
 def updateChildNobodyHasExited(nobodyHasExited = null) {
 	def child = getChild()
 	if (!child) {
-		return;
+		return
 	}
 	
 	if (nobodyHasExited == null) {
 		nobodyHasExited = preventStateChangeIfNoMovementAtExits && atomicState.nobodyHasExited
 	}
 
-	logDebug("updateChildNobodyHasExited: $value")
+	logDebug("updateChildNobodyHasExited: $nobodyHasExited")
 	child.sendEvent(name: "nobodyHasExited", value: nobodyHasExited, descriptionText: "nobodyHasExited is ${nobodyHasExited}", displayed: true)
 }
 
@@ -446,15 +455,16 @@ def updateOccupancy(occupancy)	{
 	if (occupancy == atomicState.occupancy) {
 		return
 	}
+    
+	logDebug("updateOccupancy: $occupancy")
+	atomicState.occupancy = occupancy
+	atomicState.appLightChangeTime = now()
 	
 	def child = getChild()
 	if (!child) {
 		return
 	}
 
-	logDebug("updateOccupancy: $occupancy")
-	atomicState.occupancy = occupancy
-	atomicState.appLightChangeTime = now()
 	child.sendEvent(name: "occupancy", value: occupancy, descriptionText: "occupancy changed to ${occupancy}", displayed: true)
 	def value = occupancy == "vacant" ? 'off' : 'on'
 	child.sendEvent(name: "switch", value: value, descriptionText: "switch is ${value}", displayed: true)
@@ -607,14 +617,11 @@ def occupiedLightOnHandler(evt) {
 	atomicState.lastLightOffTime = 0
 	updateChildLight(true)
 	
-	if (engageFromUserLightChanges) {
-		setEngagedIfUserChange(evt.value, evt, isOccupiedLightOnUserChange, "occupiedLightOn")
-	} else {
-		setOccupiedIfNotEngaged("occupiedLightOn")
-	}
+    setStateIfUserChange(engageFromUserLightChanges ? "engaged" : "occupied",
+                         value, evt, "isOccupiedLightOnUserChange", "occupiedLightOn")
 }
 
-def isOccupiedLightOnUserChange() {
+def isOccupiedLightOnUserChange(occupancy, value, deviceId) {
 	return atomicState.targetLevel == 0
 }
 
@@ -635,16 +642,13 @@ def occupiedLightOffHandler(evt) {
 }
 
 def occupiedLightLevelHandler(evt) {
-    def value = evt.value.toInteger()
-    logDebug("occupiedLightLevelHandler: ${evt.getDevice()} level=${value}")
-	if (engageFromUserLightChanges) {		
-		setEngagedIfUserChange(value, evt, isOccupiedLightLevelUserChange, "occupiedLightLevel")
-	} else {
-		setOccupiedIfNotEngaged("occupiedLightLevel")
-	}
+    logDebug("occupiedLightLevelHandler: ${evt.getDevice()} level=${evt.value}")
+    setStateIfUserChange(engageFromUserLightChanges ? "engaged" : "occupied",
+                         evt.value, evt, "isOccupiedLightLevelUserChange", "occupiedLightLevel")
 }
 
-def isOccupiedLightLevelUserChange(value, deviceId) {
+def isOccupiedLightLevelUserChange(occupancy, value, deviceId) {
+    value = value as int
 	def targetValue = atomicState.targetLevel
 	if (targetValue == 0) {
 		return true
@@ -661,17 +665,13 @@ def isOccupiedLightLevelUserChange(value, deviceId) {
 }
 
 def occupiedLightColorTemperatureHandler(evt) {
-    def value = evt.value.toInteger()
-    logDebug("occupiedLightColorTemperatureHandler: ${evt.getDevice()} colorTemperature=${value}")
-	if (engageFromUserLightChanges) {		
-		setEngagedIfUserChange(value, evt, isOccupiedLightColorTemperatureUserChange, "occupiedLightColorTemperature")
-	} else {
-		setOccupiedIfNotEngaged("occupiedLightColorTemperature")
-	}
+    logDebug("occupiedLightColorTemperatureHandler: ${evt.getDevice()} colorTemperature=${evt.value}")
+    setStateIfUserChange(engageFromUserLightChanges ? "engaged" : "occupied",
+                         evt.value, evt, "isOccupiedLightColorTemperatureUserChange", "occupiedLightColorTemperature")
 }
 
-def isOccupiedLightColorTemperatureUserChange(value, deviceId) {
-	def occupancy = atomicState.occupancy
+def isOccupiedLightColorTemperatureUserChange(occupancy, value, deviceId) {
+    value = value as int
 	def targetValue
 	switch (occupancy) {
 		case "engaged":
@@ -694,23 +694,26 @@ def occupiedLightHueHandler(evt) {
     setOccupiedIfNotEngaged("occupiedLightHue");
 }
 
-def setEngagedIfUserChange(value, evt, isUserChangeFn, source) {
-	if (atomicState.occupancy == "engaged") {
+def setStateIfUserChange(newOccupancy, value, evt, isUserChangeFn, source) {
+    def occupancy = atomicState.occupancy
+	if (OCCUPANCY_ENUM_VALUE[occupancy] >= OCCUPANCY_ENUM_VALUE[newOccupancy]) {
 		setTrigger(source)
 		return
 	}
 
 	def userChange = evt.physical
-	if (!userChange) {
-		userChange = isUserChangeFn(value, evt.getDeviceId())
-	}
     if (!userChange) {
         def millisSinceOccupancyChange = ((time ? time : now()) - atomicState.appLightChangeTime)
         logDebug("${source}: millisSinceOccupancyChange ${millisSinceOccupancyChange}")
-        userChange = millisSinceOccupancyChange > OCCUPANCY_TRANSITION_MILLIS
+        if (millisSinceOccupancyChange > OCCUPANCY_TRANSITION_IGNORE_MILLIS) {
+		    userChange = millisSinceOccupancyChange > OCCUPANCY_TRANSITION_MAX_MILLIS
+	        if (!userChange) {
+                userChange = "${isUserChangeFn}"(occupancy, value, evt.getDeviceId())
+	        }
+        }
     }
     if (userChange) {
-        setOccupancyTrigger("engaged", source)
+        setOccupancyTrigger(newOccupancy, source)
     }
 }
 
@@ -814,7 +817,8 @@ def occupied() {
 def updateOccupiedLights() {
 	def turnOffNightLight = false
 	if (occupiedLightSwitches) {
-		if (atomicState.lastTriggerSource?.startsWith("occupiedLight")) {
+		if (atomicState.lastTriggerSource?.startsWith("occupiedLight") &&
+                (now() - atomicState.lastTriggerTime) < OCCUPANCY_TRANSITION_MAX_MILLIS) {
 			logDebug("updateOccupiedLights: Not changing occupied lights because user changed lights")
 			// User triggered lights on, so don't change the lights.
 			// Turn off night lights if any light is on.
@@ -1026,8 +1030,12 @@ def runDelayEvaluateState() {
 			atomicState.lastTriggerSource = "timeout"
 			switch (occupancy) {
 				case "engaged":
-					logInfo("runDelayEvaluateState: changing to vacant state")
-					occupied()
+                    if (engagedTimeoutPreventSwitches && engagedTimeoutPreventSwitches.currentSwitch.contains("on")) {
+			            logDebug("runDelayEvaluateState: engage conditions not successful")
+                    } else {
+					    logInfo("runDelayEvaluateState: changing to occupied state")
+					    occupied()
+                    }
 					break
 				case "occupied":
 					logInfo("runDelayEvaluateState: changing to checking state")

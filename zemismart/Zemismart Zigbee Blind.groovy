@@ -14,6 +14,13 @@
  * https://github.com/iquix/Smartthings/blob/master/devicetypes/iquix/tuya-window-shade.src/tuya-window-shade.groovy
  * https://raw.githubusercontent.com/shin4299/XiaomiSJ/master/devicetypes/shinjjang/zemismart-zigbee-blind.src/zemismart-zigbee-blind.groovy
  * https://templates.blakadder.com/zemismart_YH002.html
+ *
+ * VERSION HISTORY
+ * 2.0.0 (2021-03-09) [Amos Yuen] - Change tilt mode open()/close() commands to use set position
+ *			to open/close all the way.
+ *		- Rename pause() to stop()
+ *		- Remove superfluous setDirection() setMode() functions
+ * 1.0.0 (2021-03-09) [Amos Yuen] - Initial Commit
  */
 
 import groovy.json.JsonOutput
@@ -22,7 +29,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "1.0.0 - 2021-03-05"
+	return "2.0.0 - 2021-03-09"
 }
 
 private def textCopyright() {
@@ -33,23 +40,12 @@ metadata {
 	definition(name: "ZemiSmart Zigbee Blind", namespace: "amosyuen", author: "Amos Yuen",
 			ocfDeviceType: "oic.d.blind", vid: "generic-shade") {
 		capability "Actuator"
-		capability "Configuration"
+        capability "Configuration"
 		capability "Window Shade"
 
 		attribute "speed", "integer"
 
-		command "pause"
-		command "setDirection", [[
-			name: "direction",
-			type: "ENUM",
-			constraints: DIRECTIONS]]
-		command "setMode", [[
-			name: "mode",
-			type: "ENUM",
-            description: "[tilt] (pressing button < 1.5s, movement stops on release; pressing button > 1.5s, motor moves until button pressed again)"
-                    + "---------------------------------------------"
-                    + " [lift] (motor moves until button pressed again)",
-			constraints: MODES]]
+		command "stop"
 		command "setSpeed", [[
 			name: "speed",
 			type: "NUMBER",
@@ -75,9 +71,10 @@ metadata {
 
 	preferences {
 		input("mode", "enum", title: "Mode",
-            description: "<li><b>tilt</b> - pressing button < 1.5s, movement stops on release; pressing button > 1.5s, motor moves until button pressed again</li>"
-                    + "<li><b>lift</b> - motor moves until button pressed again</li>",
-			options: MODE_MAP, required: true, defaultValue: 0)
+            description: "<li><b>lift</b> - motor moves until button pressed again</li>"
+                    + "<li><b>tilt</b> - pressing button < 1.5s, movement stops on release"
+                    + "; pressing button > 1.5s, motor moves until button pressed again</li>",
+			options: MODE_MAP, required: true, defaultValue: "1")
 		input("direction", "enum", title: "Direction",
 			options: DIRECTION_MAP, required: true, defaultValue: 0)
 	    input("enableDebugLog", "bool", title: "Enable debug logging", required: true, defaultValue: false)
@@ -86,7 +83,8 @@ metadata {
     }
 }
 
-@Field final Map MODE_MAP = [0: "tilt", 1: "lift"]
+@Field final String MODE_TILT = "0"
+@Field final Map MODE_MAP = [1: "lift", 0: "tilt"]
 @Field final Map MODE_MAP_REVERSE = MODE_MAP.collectEntries { [(it.value): it.key] }
 @Field final List MODES = MODE_MAP.collect { it.value }
 @Field final Map DIRECTION_MAP = [0: "forward", 1: "reverse"]
@@ -110,26 +108,21 @@ def configure() {
 	state.version = textVersion()
     state.copyright = textCopyright()
 
-	setDirection()
-	setMode()
+    // Must run async otherwise, one will block the other
+	runIn(1, setMode)
+	runIn(2, setDirection)
 }
 
 def setDirection() {
-    def directionText = DIRECTION_MAP[direction]
-    logDebug("setDirection: directionText=${directionText}, directionValue=${direction}")
-    if (directionText == null) {
-        throw new Exception("Invalid direction ${direction}. Direction must be one of ${DIRECTIONS}")
-    }
-	sendTuyaCommand(DP_ID_DIRECTION, DP_TYPE_ENUM, direction as int, 2)
+    def directionValue = direction as int
+    logDebug("setDirection: directionText=${DIRECTION_MAP[directionValue]}, directionValue=${directionValue}")
+	sendTuyaCommand(DP_ID_DIRECTION, DP_TYPE_ENUM, directionValue, 2)
 }
 
 def setMode() {
-    def modeText = MODE_MAP[mode]
-    logDebug("setMode: modeText=${modeText}, modeValue=${mode}")
-    if (modeText == null) {
-        throw new Exception("Invalid mode ${mode}. Mode must be one of ${MODES}")
-    }
-    sendTuyaCommand(DP_ID_MODE, DP_TYPE_ENUM, mode as int, 2)
+    def modeValue = mode as int
+    logDebug("setMode: modeText=${MODE_MAP[mode]}, modeValue=${modeValue}")
+    sendTuyaCommand(DP_ID_MODE, DP_TYPE_ENUM, modeValue, 2)
 }
 
 //
@@ -359,42 +352,35 @@ private updateWindowShadeArrived(position) {
 // Actions
 //
 
-def open() {
-	logDebug("open")
-    sendEvent(name: "position", value: 100)
-	sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, DP_COMMAND_OPEN, 2)
-}
-
-
-private sendTuyaCommand2(dp, fn, data) {
-	if(logEnable) log.trace "send tuya command ${dp},${fn},${data}"
-	logTrace("sendTuyaCommand2: message=${"00" + zigbee.convertToHexString(rand(256), 2) + dp + fn + data}")
-	zigbee.command(CLUSTER_TUYA, SETDATA, "00" + zigbee.convertToHexString(rand(256), 2) + dp + fn + data)
-}
-
-private rand(n) {
-	return (new Random().nextInt(n))
-}
-
-def pause() {
-	logDebug("pause")
-	sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, DP_COMMAND_STOP, 2)
-}
-
 def close() {
 	logDebug("close")
     sendEvent(name: "position", value: 0)
-	sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, DP_COMMAND_CLOSE, 2)
+    if (mode == MODE_TILT) {
+        setPosition(0)
+    } else {
+	    sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, DP_COMMAND_CLOSE, 2)
+    }
+}
+
+def open() {
+	logDebug("open")
+    sendEvent(name: "position", value: 100)
+    if (mode == MODE_TILT) {
+        setPosition(100)
+    } else {
+	    sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, DP_COMMAND_OPEN, 2)
+    }
+}
+
+def stop() {
+	logDebug("stop")
+	sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, DP_COMMAND_STOP, 2)
 }
 
 def setPosition(position) {
     logDebug("setPosition: position=${position}")
     if (position < 0 || position > 100) {
         throw new Exception("Invalid position ${position}. Position must be between 0 and 100 inclusive.")
-    }
-    def currentPosition = device.currentPosition
-    if (currentPosition == position) {
-        return
     }
     if (isWithinOne(position)) {
         // Motor is off by one sometimes, so set it to desired value if within one

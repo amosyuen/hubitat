@@ -6,7 +6,7 @@ WARNING: Still in Alpha
 
 ## Station
 
-* Read and write guard mode
+* Get and set guard mode
 * Polls the servers every `pollIntervalSeconds` seconds, where `pollIntervalSeconds` can be  set by the user. Defaults to every 5 minutes.
 
     ### Tested Devices
@@ -15,15 +15,16 @@ WARNING: Still in Alpha
 
 ## Doorbell
 
-WARNING: Writing doesn't work for wireless doorbells connected directly to homebase
+WARNING: Setting values doesn't work for wireless doorbells connected directly to homebase
 
 * Turn on or off
-* Read and write guard mode
-* Read and write audio recording setting
-* Read and write motion detection setting
-* Read and write dection type setting
-* Read and write dection sensitivity setting
-* Read and write snooze
+* Get battery (wireless doorbell only)
+* Get and set guard mode
+* Get and set audio recording setting
+* Get and set motion detection setting
+* Get and set dection type setting
+* Get and set dection sensitivity setting
+* Get and set snooze
 * Polls the servers every `pollIntervalSeconds` seconds, where `pollIntervalSeconds` can be  set by the user. Defaults to every 5 minutes.
 
     ### Tested Devices
@@ -32,17 +33,18 @@ WARNING: Writing doesn't work for wireless doorbells connected directly to homeb
 
 ## Cameras
 
-WARNING: Writing doesn't work for cameras connected directly to homebase
+WARNING: Setting values doesn't work for cameras connected directly to homebase
 
 * Turn on or off
-* Read and write audio recording setting
-* Read and write motion detection setting
-* Read and write dection type setting
-* Read and write dection sensitivity setting
-* Read and write power mode setting
-* Read and write record clip length setting
-* Read and write record retrigger interval setting
-* Read and write snooze
+* Get battery
+* Get and set audio recording setting
+* Get and set motion detection setting
+* Get and set dection type setting
+* Get and set dection sensitivity setting
+* Get and set power mode setting
+* Get and set record clip length setting
+* Get and set record retrigger interval setting
+* Get and set snooze
 * Polls the servers every `pollIntervalSeconds` seconds, where `pollIntervalSeconds` can be  set by the user. Defaults to every 5 minutes.
 
     ### Tested Devices
@@ -52,7 +54,7 @@ WARNING: Writing doesn't work for cameras connected directly to homebase
 I don't have other Eufy devices to test with, but app should work with most of the cameras and doorbells assuming they work similarly. Please let me know if it works for you for other devices not in the tested list.
 
 # Known Issues
-* Devices directly connected to the homebase such as security cameras and wireless doorbells are unable to write settings with this implementation. Still working on figuring out if there is a way to get around that as they use some obscure P2P protocol.
+* Devices directly connected to the homebase such as security cameras and wireless doorbells are unable to set settings with this implementation. Still working on figuring out if there is a way to get around that as they use some obscure P2P protocol.
 
 # Debugging
 Steps to get helpful debugging info if things aren't working.

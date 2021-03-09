@@ -46,59 +46,61 @@ def mainPage() {
                   multiple: true, submitOnChange: true)
             input("thermostats", "capability.thermostatHeatingSetpoint", title: "Thermostat to heat",
                   multiple: true, submitOnChange: true)
+            input("windowShades", "capability.windowShade", title: "Window shades to open",
+                  multiple: true, submitOnChange: true)
         }
         
         if (lights) {
-        section ("<b>Lights Warmup</b>") {
-            paragraph("Light fading before wake up")
-            
-            input("lightFadeSecondsWarmup", "number", title: "Warmup seconds to fade light",
-                  required: true, min: 0, defaultValue: 900, submitOnChange: true)
-			if (lightFadeSecondsStartWarmup > 0) {
-				input("updateIntervalSecondsWarmup", "number", title: "Warmup update interval in seconds",
-                      required: true, min: 1, defaultValue: 30)
-			}
+			section ("<b>Lights Warmup</b>") {
+				paragraph("Light fading before wake up")
+				
+				input("lightFadeSecondsWarmup", "number", title: "Warmup seconds to fade light",
+					required: true, min: 0, defaultValue: 900, submitOnChange: true)
+				if (lightFadeSecondsStartWarmup > 0) {
+					input("updateIntervalSecondsWarmup", "number", title: "Warmup update interval in seconds",
+						required: true, min: 1, defaultValue: 30)
+				}
 
-            input("lightLevelStartWarmup", "number", title: "Warmup light level to start fade",
-                  required: true, min: 0, max: 100, defaultValue: 0)
-			if (lightFadeSecondsStartWarmup > 0) {
-            	input("lightLevelEndWarmup", "number", title: "Warmup light level to end fade",
-                      required: true, min: 0, max: 100, defaultValue: 25)
-			}
+				input("lightLevelStartWarmup", "number", title: "Warmup light level to start fade",
+					required: true, min: 0, max: 100, defaultValue: 0)
+				if (lightFadeSecondsStartWarmup > 0) {
+					input("lightLevelEndWarmup", "number", title: "Warmup light level to end fade",
+						required: true, min: 0, max: 100, defaultValue: 25)
+				}
 
-            input("lightColorTemperatureStartWarmup", "number", title: "Warmup light color temperature to start fade",
-                  min: 0, defaultValue: 2700)
-			if (lightFadeSecondsStartWarmup > 0) {
-            	input("lightColorTemperatureEndWarmup", "number", title: "Warmup light color temperature to end fade",
-                      min: 0, defaultValue: 2700)
+				input("lightColorTemperatureStartWarmup", "number", title: "Warmup light color temperature to start fade",
+					min: 0, defaultValue: 2700)
+				if (lightFadeSecondsStartWarmup > 0) {
+					input("lightColorTemperatureEndWarmup", "number", title: "Warmup light color temperature to end fade",
+						min: 0, defaultValue: 2700)
+				}
 			}
-        }
-        
-        section ("<b>Lights Wakeup</b>") {
-            input("lightFadeSecondsStart", "number", title: "Wakeup seconds to fade light value",
-                  required: true, min: 0, defaultValue: 180, submitOnChange: true)
-			if (lightFadeSecondsStart > 0) {
-				input("updateIntervalSeconds", "number", title: "Wakeup update interval in seconds",
-                      required: true, min: 1, defaultValue: 5)
-			}
+			
+			section ("<b>Lights Wakeup</b>") {
+				input("lightFadeSecondsStart", "number", title: "Wakeup seconds to fade light value",
+					required: true, min: 0, defaultValue: 180, submitOnChange: true)
+				if (lightFadeSecondsStart > 0) {
+					input("updateIntervalSeconds", "number", title: "Wakeup update interval in seconds",
+						required: true, min: 1, defaultValue: 5)
+				}
 
-            input("lightLevelStart", "number", title: "Wakeup light level to start fade",
-                  required: true, min: 0, max: 100, defaultValue: 0)
-			if (lightFadeSecondsStart > 0) {
-            	input("lightLevelEnd", "number", title: "Wakeup light level to end fade",
-                      required: true, min: 0, max: 100, defaultValue: 100)
-			}
+				input("lightLevelStart", "number", title: "Wakeup light level to start fade",
+					required: true, min: 0, max: 100, defaultValue: 0)
+				if (lightFadeSecondsStart > 0) {
+					input("lightLevelEnd", "number", title: "Wakeup light level to end fade",
+						required: true, min: 0, max: 100, defaultValue: 100)
+				}
 
-            input("lightColorTemperatureStart", "number", title: "Wakeup light temperature to start fade",
-                  min: 0, defaultValue: 2700)
-			if (lightFadeSecondsStart > 0) {
-            	input("lightColorTemperatureEnd", "number", title: "Wakeup light temperature to end fade",
-                      min: 0, defaultValue: 7000)
-                
-				input("snoozeFadeTimeRatio", "decimal", title: "Ratio to reduce fade light time on each snooze",
-                      required: true, min: 0, max: 1, defaultValue: 0.5)
+				input("lightColorTemperatureStart", "number", title: "Wakeup light temperature to start fade",
+					min: 0, defaultValue: 2700)
+				if (lightFadeSecondsStart > 0) {
+					input("lightColorTemperatureEnd", "number", title: "Wakeup light temperature to end fade",
+						min: 0, defaultValue: 7000)
+					
+					input("snoozeFadeTimeRatio", "decimal", title: "Ratio to reduce fade light time on each snooze",
+						required: true, min: 0, max: 1, defaultValue: 0.5)
+				}
 			}
-        }
         }
         
         if (thermostats) {
@@ -212,6 +214,9 @@ def warmup() {
     if (thermostats) {
         setThermostats()
     }
+    if (windowShades) {
+		windowShades.open()
+	}
     
 	def millis = now()
 	atomicState.startMillis = millis

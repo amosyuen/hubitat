@@ -31,6 +31,13 @@
 			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/motion/packageManifest.json",
 			"description": "Create a motion sensor that is triggered active after X motion events in Y seconds",
 			"tags": ["Motion Control"]
+		},
+		{
+			"name": "Zemismart Zigbee Blind",
+			"category": "Control",
+			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/zemismart/packageManifest.json",
+			"description": "Zemismart zigbee blind device driver",
+			"tags": ["Window Coverings", "Zigbee"]
 		}
 	]
 }

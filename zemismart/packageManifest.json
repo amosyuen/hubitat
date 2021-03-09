@@ -1,0 +1,20 @@
+{
+	"packageName": "Zemismart Zigbee Blind",
+	"author": "Amos Yuen",
+	"version": "1.0.0",
+	"minimumHEVersion": "0.0",
+	"dateReleased": "2021-03-09",
+	"releaseNotes" : "Initial release with added support of mode and speed.",
+	"documentationLink": "https://github.com/amosyuen/hubitat/blob/main/zemismart/README.md",
+	"communityLink": "https://community.hubitat.com/t/release-zemismart-zigbee-blind-driver/67525",
+	"drivers": [
+		{
+			"id": "f49cbab2-7fe9-450f-a286-05d36b5c43fd",
+			"name": "Zemismart Zigbee Blind",
+			"namespace": "amosyuen",
+			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/zemismart/Zemismart%20Zigbee%20Blind.groovy",
+			"required": true,
+			"version": "1.0.0"
+		}
+	]
+}

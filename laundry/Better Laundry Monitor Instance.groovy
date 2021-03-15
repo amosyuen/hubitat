@@ -364,7 +364,7 @@ def notifyRepeat(data) {
 		return
 	}
 	sendNotification(data.msg)
-	if (data.repeatCount >= 1) {
+	if (data.repeatCount > 1) {
 		runIn(parent.notificationRepeatDelay, notifyRepeat, [data: [msg: data.msg, repeatCount: data.repeatCount - 1]])
 	}
 }

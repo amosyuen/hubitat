@@ -11,6 +11,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY 
+ *	3.0.1 (2021-03-26) [Amos Yuen] - Fix logging issues in closures
  *	3.0.0 (2021-01-22) [Amos Yuen] - Remove heatLevelReached and notifications
  *	2.0.1 (2021-01-05) [Amos Yuen] - Fixed credentials page and notifications for bed events
  *	2.0 (2021-01-04) [Amos Yuen] - Cleaned up code and ported to hubitat
@@ -31,7 +32,7 @@ import groovy.transform.Field
 @Field final Integer MAX_ACCESS_TOKEN_RENEW_ATTEMPTS = 3
 
 private def textVersion() {
-	return "Version: 3.0.0 - 2020-01-22"
+	return "Version: 3.0.1 - 2020-03-26"
 }
 
 private def textCopyright() {
@@ -170,7 +171,7 @@ def updated() {
 }
 
 def initialize() {
-	logger.debug("initialize")
+	logMsg("debug", "initialize")
 	updateDevicesAndSharedUsers()
 	if (selectedEightSleep) {
 		createEightSleepDevicesIfNotExist()
@@ -180,7 +181,7 @@ def initialize() {
 }
 
 def uninstalled() {
-	logger.info("uninstalled: Removing child devices...")
+	logMsg("info", "uninstalled: Removing child devices...")
 	unschedule()
 	removeChildDevices(getChildDevices())
 }
@@ -204,7 +205,7 @@ def updateDevicesAndSharedUsers() {
 	if (user) {
 		def sharingMetricsFrom = user.sharingMetricsFrom
 		user.devices.each { device ->
-			logger.debug("updateDevicesAndSharedUsers: Found Device ${device}")
+			logMsg("debug", "updateDevicesAndSharedUsers: Found Device ${device}")
 			def result = apiGET("/devices/${device}?filter=ownerId,leftUserId,rightUserId").result
 			def baseName = "Eight Sleep ${device.substring(device.length() - 4)}"
 			def ownerUserId = result.ownerId
@@ -221,21 +222,21 @@ def updateDevicesAndSharedUsers() {
 		}
 	}
 	state.eightSleepDevices = eightSleepDevices
-   	logger.debug("updateDevicesAndSharedUsers: eightSleepDevices=${eightSleepDevices}")
-   	logger.debug("updateDevicesAndSharedUsers: selectedDevices=${selectedDevices}")
+   	logMsg("debug", "updateDevicesAndSharedUsers: eightSleepDevices=${eightSleepDevices}")
+   	logMsg("debug", "updateDevicesAndSharedUsers: selectedDevices=${selectedDevices}")
 	
 	//Remove devices if does not exist on the Eight Sleep platform
 	getChildDevices().each {
 		if (selectedDevices.contains("${it.deviceNetworkId}")) {
 			return
 		}
-		logger.info("updateDevicesAndSharedUsers: Deleting ${it.deviceNetworkId}")
+		logMsg("info", "updateDevicesAndSharedUsers: Deleting ${it.deviceNetworkId}")
 		try {
 			deleteChildDevice(it.deviceNetworkId)
 		} catch (hubitat.exception.NotFoundException e) {
-			logger.warn("updateDevicesAndSharedUsers: Could not find device ${it.deviceNetworkId}. Assuming manually deleted.")
+			logMsg("warn", "updateDevicesAndSharedUsers: Could not find device ${it.deviceNetworkId}. Assuming manually deleted.")
 		} catch (hubitat.exception.ConflictException ce) {
-			logger.warn("updateDevicesAndSharedUsers: Device ${it.deviceNetworkId} still in use. Please manually delete.")
+			logMsg("warn", "updateDevicesAndSharedUsers: Device ${it.deviceNetworkId} still in use. Please manually delete.")
 		}
 	} 
 }
@@ -249,7 +250,7 @@ def parseDeviceSide(sharingMetricsFrom, device, side, userId, baseName, ownerUse
 	} else if (sharingMetricsFrom.contains(userId)) {
 		name += " [User ${last4UserId}]"
 	} else {
-		logger.info("getNameForDeviceSide: Device ${key} has unshared user id=${userId}")
+		logMsg("info", "getNameForDeviceSide: Device ${key} has unshared user id=${userId}")
 		return null
 	}
 	eightSleepDevices[key] = name
@@ -267,9 +268,9 @@ def createEightSleepDevicesIfNotExist() {
 		if (!childDevice) {
 			def data = [name: name, label: name]
 			childDevice = addChildDevice("amosyuen", "Eight Sleep Mattress", device, null, data)
-			logger.info("createEightSleepDevicesIfNotExist: Added device id=${device}, name=${name}")
+			logMsg("info", "createEightSleepDevicesIfNotExist: Added device id=${device}, name=${name}")
 		} else {
-			logger.info("createEightSleepDevicesIfNotExist: Found existing device id=${device}, name=${name}")
+			logMsg("info", "createEightSleepDevicesIfNotExist: Found existing device id=${device}, name=${name}")
 		}
 	}
 }
@@ -285,8 +286,8 @@ private def apiPOST(path, body = [:], refreshToken = true) {
 }
 
 private def makeHttpCall(methodFn, path, body = [:], refreshToken = true) {
-	logger.debug("makeHttpCall: methodFn=${methodFn},\npath=${path},\nbody=${body}")
-	def headers = apiRequestHeaders(logger, refreshToken)
+	logMsg("debug", "makeHttpCall: methodFn=${methodFn},\npath=${path},\nbody=${body}")
+	def headers = apiRequestHeaders(logMsg, refreshToken)
 	def response
 	try {
 		"${methodFn}"([
@@ -296,41 +297,41 @@ private def makeHttpCall(methodFn, path, body = [:], refreshToken = true) {
 			headers: headers
 		]) { response = it }
 	} catch (groovyx.net.http.HttpResponseException e) {
-		logger.error("makeHttpCall: HttpResponseException status=${e.statusCode}, body=${e.getResponse().getData()}")
+		logMsg("error", "makeHttpCall: HttpResponseException status=${e.statusCode}, body=${e.getResponse().getData()}")
 		if (e.statusCode == 401) {
 			// OAuth token is expired
 			state.remove("eightSleepAccessToken")
-			logger.warn("makeHttpCall: Access token is not valid")
+			logMsg("warn", "makeHttpCall: Access token is not valid")
 		}
 		throw e
 	} catch (java.net.SocketTimeoutException e) {
-		logger.warn("makeHttpCall: Connection timed out", e)
+		logMsg("warn", "makeHttpCall: Connection timed out", e)
 		throw e
 	}
 	
 	if (response.status >= 400) {
-		logger.error("makeHttpCall: Error response status=${response.status}, data=${response.data}")
+		logMsg("error", "makeHttpCall: Error response status=${response.status}, data=${response.data}")
 		throw new Exception("Error response status=${response.status}, data=${response.data}")
 	}
-	logger.trace("makeHttpCall: status=${response.status}, data=${response.data}")
+	logMsg("trace", "makeHttpCall: status=${response.status}, data=${response.data}")
 	return response.data
 }
 
 def apiUrl() { return "https://client-api.8slp.net/v1" }
 
-Map apiRequestHeaders(logger, refreshToken = true) {
+Map apiRequestHeaders(logMsg, refreshToken = true) {
 	if (refreshToken) {
    		def expirationTime = parseIsoTime(atomicState.expirationDate).getTime()
    		if (now() > expirationTime) {
 			for (i = 0; i < MAX_ACCESS_TOKEN_RENEW_ATTEMPTS; i++) {
-				logger.debug("apiRequestHeaders: Renewing access token attempt ${i}")
-				if (getEightSleepAccessToken(logger)) {
+				logMsg("debug", "apiRequestHeaders: Renewing access token attempt ${i}")
+				if (getEightSleepAccessToken(logMsg)) {
 					break
 				}
 			}
 
 			if (!state.eightSleepAccessToken) {
-				logger.error("apiRequestHeaders: Access token is invalid")
+				logMsg("error", "apiRequestHeaders: Access token is invalid")
 				throw new Exception("Access token is invalid")
 			}
 		}
@@ -349,7 +350,7 @@ Map apiRequestHeaders(logger, refreshToken = true) {
 	]
 }
 
-private def getEightSleepAccessToken(logger = logger) {  
+private def getEightSleepAccessToken(logMsg = logMsg) {  
 	def body = [ 
 		"email": "${username}",
 		"password" : "${password}"
@@ -373,9 +374,9 @@ private def getEightSleepAccessToken(logger = logger) {
 	state.eightSleepAccessToken = session.token
 	state.userId = session.userId
 	atomicState.expirationDate = session.expirationDate
-	logger.debug("getEightSleepAccessToken: eightSleepAccessToken=${session.token}")
-	logger.debug("getEightSleepAccessToken: eightSleepUserId=${session.userId}")
-	logger.debug("getEightSleepAccessToken: eightSleepTokenExpirationDate=${session.expirationDate}")
+	logMsg("debug", "getEightSleepAccessToken: eightSleepAccessToken=${session.token}")
+	logMsg("debug", "getEightSleepAccessToken: eightSleepUserId=${session.userId}")
+	logMsg("debug", "getEightSleepAccessToken: eightSleepTokenExpirationDate=${session.expirationDate}")
 	state.loginErrors = null
 	return state.eightSleepAccessToken
 }
@@ -388,10 +389,28 @@ def parseIsoTime(time) {
 	return dateFormat.parse(time)
 }
 
-@Field final Map logger = [
-	trace: { if (traceLogging) { log.trace(it) } },
-	debug: { if (debugLogging) { log.debug(it) } },
-	info: { log.info(it) },
-	warn: { log.warn(it) },
-	error: { log.error(it) },
-]
+def logMsg(level, message) {
+    switch(level) {
+        case "trace":
+            if (traceLogging) {
+                log.trace(message)
+            }
+            break
+        case "debug":
+            if (debugLogging) {
+                log.debug(message)
+            }
+            break
+        case "info":
+            log.info(message)
+            break
+        case "warn":
+            log.warn(message)
+            break
+        case "error":
+            log.error(message)
+            break
+        default:
+            throw new Exception("Unsupported log level ${level}")
+    }
+}

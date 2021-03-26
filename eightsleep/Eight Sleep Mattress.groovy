@@ -11,6 +11,7 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
+ *	3.0.1 (2021-03-26) [Amos Yuen] - Fix logging issues in closures
  *	3.0.0 (2021-01-22) [Amos Yuen]
  *			- Use userIntervals for calculating sleep stage and expose as sleepStage attribute
  *			- Add preferences for creating temperature sensor for bed and room temperature
@@ -67,7 +68,7 @@
 import groovy.transform.Field
 
 private def textVersion() {
-	 def text = "Eight Sleep Mattress\nVersion: 3.0.0\nDate: 2021-01-22"
+	 def text = "Version: 3.0.1\nDate: 2021-03-26"
 }
 
 private def textCopyright() {
@@ -142,7 +143,7 @@ def updated() {
 }
 
 def init() {
-	logger.info("init")
+	logMsg("info", "init")
 	unschedule()
 
 	def tokens = device.deviceNetworkId.tokenize("/")
@@ -169,7 +170,7 @@ def init() {
 //
 
 def createChildDevicesIfNotExist() {
-	logger.debug("createChildDevicesIfNotExist")
+	logMsg("debug", "createChildDevicesIfNotExist")
 	updateChildDevice(state.supportsCooling && createCoolDimmerChild, "Generic Component Dimmer", getChildCoolId(), device.label + " Cool")
 	updateChildDevice(createHeatDimmerChild, "Generic Component Dimmer", getChildHeatId(), device.label + " Heat")
 	updateChildDevice(createBedPresenceChild, "Virtual Presence", getChildBedPresenceId(), device.label + " Presence")
@@ -183,11 +184,11 @@ def updateChildDevice(shouldCreate, type, id, label) {
 	
 	if (child) {
 		if (!shouldCreate) {
-			logger.info("updateChildDevice: Deleting child device ${label}")
+			logMsg("info", "updateChildDevice: Deleting child device ${label}")
 			deleteChildDevice(id)
 		}
 	} else if (shouldCreate) {
-		logger.info("updateChildDevice: Creating child device ${label}")
+		logMsg("info", "updateChildDevice: Creating child device ${label}")
 		addChildDevice("hubitat", type, id, 
 				[
 					label: label,
@@ -228,7 +229,7 @@ def getChildRoomTemperatureId() {
 
 def componentSetLevel(componentDevice, level, transitionTime = null) {
 	if (!componentDevice) { return }
-	logger.debug("componentSetLevel: componentDevice=${componentDevice} level=${level}")
+	logMsg("debug", "componentSetLevel: componentDevice=${componentDevice} level=${level}")
 	if (componentDevice.deviceNetworkId == getChildHeatId()) {
 		setTargetHeatLevel(level)
 	} else if (componentDevice.deviceNetworkId == getChildCoolId()) {
@@ -238,7 +239,7 @@ def componentSetLevel(componentDevice, level, transitionTime = null) {
 
 def componentOn(componentDevice) {
 	if (!componentDevice) { return }
-	logger.debug("componentOn: componentDevice=${componentDevice}")
+	logMsg("debug", "componentOn: componentDevice=${componentDevice}")
 	on()
 	if (componentDevice.deviceNetworkId == getChildHeatId()) {
 		setTargetHeatLevel(Math.max(10, device.currentTargetHeatLevel as Integer))
@@ -249,7 +250,7 @@ def componentOn(componentDevice) {
 
 def componentOff(componentDevice) {
 	if (!componentDevice) { return }
-	logger.debug("componentOff: componentDevice=${componentDevice}")
+	logMsg("debug", "componentOff: componentDevice=${componentDevice}")
 	off()
 }
 
@@ -263,40 +264,40 @@ def componentRefresh(componentDevice) {
 //
 
 def on() {
-	logger.debug("on")
+	logMsg("debug", "on")
 	setTargetHeatLevel(device.currentTargetHeatLevel == 0 ? 10 : device.currentTargetHeatLevel as Integer)
 }
 
 def off() {
-	logger.debug("off")
+	logMsg("debug", "off")
 	setTargetHeatLevel(0)
 }
 
 def cool() {
-	logger.debug("cool")
+	logMsg("debug", "cool")
 	if (!state.supportsCooling) {
-		logger.warn("cool() is unsupported for this device")
+		logMsg("warn", "cool() is unsupported for this device")
 		return
 	}
 	setTargetHeatLevel(Math.min(-10, device.currentTargetHeatLevel as Integer))
 }
 
 def heat() {
-	logger.debug("heat")
+	logMsg("debug", "heat")
 	setTargetHeatLevel(Math.max(10, device.currentTargetHeatLevel as Integer))
 }
 
 def auto() {
-	logger.warn("auto() is unsupported")
+	logMsg("warn", "auto() is unsupported")
 }
 
 
 def emergencyHeat() {
-	logger.warn("emergencyHeat() is unsupported")
+	logMsg("warn", "emergencyHeat() is unsupported")
 }
 
 def setThermostatMode(mode) {
-	logger.debug("setThermostatMode: mode=${mode}")
+	logMsg("debug", "setThermostatMode: mode=${mode}")
 	switch (mode) {
 		case "heat":
 			heat()
@@ -308,43 +309,43 @@ def setThermostatMode(mode) {
 			off()
 			break
 		default:
-			logger.warn("setThermostatMode: Unsupported mode ${mode}")
+			logMsg("warn", "setThermostatMode: Unsupported mode ${mode}")
 			break
 	}
 }
 
 def setCoolingSetpoint(setpoint) {
-	logger.debug("setCoolingSetpoint: setpoint=${setpoint}")
+	logMsg("debug", "setCoolingSetpoint: setpoint=${setpoint}")
 	if (!state.supportsCooling) {
-		logger.warn("setCoolingSetpoint() is unsupported for this device")
+		logMsg("warn", "setCoolingSetpoint() is unsupported for this device")
 		return
 	}
 	setTargetHeatLevel(setpoint)
 }
 
 def setHeatingSetpoint(setpoint) {
-	logger.debug("setHeatingSetpoint: setpoint=${setpoint}")
+	logMsg("debug", "setHeatingSetpoint: setpoint=${setpoint}")
 	setTargetHeatLevel(setpoint)
 }
 
 def fanAuto() {
-	logger.warn("fanAuto() is unsupported")
+	logMsg("warn", "fanAuto() is unsupported")
 }
 
 def fanCirculate() {
-	logger.warn("fanCirculate() is unsupported")
+	logMsg("warn", "fanCirculate() is unsupported")
 }
 
 def fanOn() {
-	logger.warn("fanOn() is unsupported")
+	logMsg("warn", "fanOn() is unsupported")
 }
 
 def setThermostatFanMode(mode) {
-	logger.warn("setThermostateFanMode() is unsupported")
+	logMsg("warn", "setThermostateFanMode() is unsupported")
 }
 
 def setSchedule(schedule) {
-	logger.warn("setSchedule() is unsupported")
+	logMsg("warn", "setSchedule() is unsupported")
 }
 
 // Needed to avoid schedule attribute colliding with schedule() method
@@ -355,7 +356,7 @@ def getSchedule() {
 
 // Custom Commands
 def setTargetHeatLevel(level) {
-	logger.debug("setTargetHeatLevel: level=${level}")
+	logMsg("debug", "setTargetHeatLevel: level=${level}")
 	level = Math.min(100, level as Integer)
 	level = Math.max(state.supportsCooling ? -100 : 0, level)
 	def body = [
@@ -390,11 +391,11 @@ def poll() {
 }
 
 def refresh() {
-	logger.info("refresh")
+	logMsg("info", "refresh")
 	
-	def headers = parent.apiRequestHeaders(logger)
+	def headers = parent.apiRequestHeaders(logMsg)
 	if (!headers) {
-		logger.error("Error getting header")
+		logMsg("error", "Error getting header")
 		return
 	}
 	
@@ -418,7 +419,7 @@ def refreshBed(headers) {
 }
 
 def handleBedResponse(response, additionalData) {
-	logger.debug("handleBedResponse")
+	logMsg("debug", "handleBedResponse")
 	
 	def data = handleAsyncResponse(response)
 	updateFromBedResult(data.result)
@@ -426,7 +427,7 @@ def handleBedResponse(response, additionalData) {
 
 def updateFromBedResult(result) {
 	if (!result.online || !result.sensorInfo.connected) { 
-		logger.debug("updateFromBedResult: Device is offline")
+		logMsg("debug", "updateFromBedResult: Device is offline")
 		setOffline()
 		return
 	}
@@ -494,7 +495,7 @@ def refreshUserInterval(headers) {
 }
 
 def handleUserIntervalResponse(response, additionalData) {
-	logger.debug("handleUserIntervalResponse")
+	logMsg("debug", "handleUserIntervalResponse")
 	
 	def data = handleAsyncResponse(response)
 	def intervals = data.intervals
@@ -600,8 +601,8 @@ def apiPUT(path, body) {
 }
 
 def makeHttpCall(methodFn, path, body = [:]) {
-	logger.debug("makeHttpCall: methodFn=${methodFn},\npath=${path},\nbody=${body}")
-	def headers = parent.apiRequestHeaders(logger)
+	logMsg("debug", "makeHttpCall: methodFn=${methodFn},\npath=${path},\nbody=${body}")
+	def headers = parent.apiRequestHeaders(logMsg)
 	def response
 	handleHttpErrors() {
 		"${methodFn}"([
@@ -614,10 +615,10 @@ def makeHttpCall(methodFn, path, body = [:]) {
 	
 	if (response.status >= 400) {
 		def error = "handleResponse: Error status=${response.status}, data=${response.data}"
-		logger.error(error)
+		logMsg("error", error)
 		throw new Error(error)
 	}
-	logger.trace("handleResponse: status=${response.status}, data=${response.data}")
+	logMsg("trace", "handleResponse: status=${response.status}, data=${response.data}")
 	return response.data
 }
 
@@ -625,19 +626,19 @@ def handleHttpErrors(Closure callback) {
 	try {
 		callback()
 	} catch (groovyx.net.http.HttpResponseException e) {
-		logger.error("makeHttpCall: HttpResponseException status=${e.statusCode}, body=${e.getResponse().getData()}", e)
+		logMsg("error", "makeHttpCall: HttpResponseException status=${e.statusCode}, body=${e.getResponse().getData()}", e)
 		if (e.statusCode == 401) {
 			// OAuth token is expired
 			state.remove("eightSleepAccessToken")
-			logger.warn("makeHttpCall: Access token is not valid")
+			logMsg("warn", "makeHttpCall: Access token is not valid")
 		}
 	} catch (java.net.SocketTimeoutException e) {
-		logger.warn("makeHttpCall: Connection timed out", e)
+		logMsg("warn", "makeHttpCall: Connection timed out", e)
 	}
 }
 
 def asyncApiGET(callbackFn, path, headers, query = [:]) {
-	logger.debug("asyncApiGet: methodFn=${callbackFn},\npath=${path},\nheaders=${headers},\nquery=${query}")
+	logMsg("debug", "asyncApiGet: methodFn=${callbackFn},\npath=${path},\nheaders=${headers},\nquery=${query}")
 	handleHttpErrors() {
 		asynchttpGet(
 			callbackFn,
@@ -655,14 +656,32 @@ def handleAsyncResponse(response) {
 		throw new Error("handleAsyncResponse: Error status=${response.getStatus()}, errorMessage=${response.getErrorMessage()}, errorData=${response.getErrorData()}")
 	}
 	def data = response.getJson()
-	logger.trace("handleAsyncResponse: status=${response.getStatus()}, data=${data}")
+	logMsg("trace", "handleAsyncResponse: status=${response.getStatus()}, data=${data}")
 	return data
 }
 
-@Field final Map logger = [
-	trace: { if (traceLogging) { log.trace(it) } },
-	debug: { if (debugLogging) { log.debug(it) } },
-	info: { log.info(it) },
-	warn: { log.warn(it) },
-	error: { log.error(it) },
-]
+def logMsg(level, message) {
+    switch(level) {
+        case "trace":
+            if (traceLogging) {
+                log.trace(message)
+            }
+            break
+        case "debug":
+            if (debugLogging) {
+                log.debug(message)
+            }
+            break
+        case "info":
+            log.info(message)
+            break
+        case "warn":
+            log.warn(message)
+            break
+        case "error":
+            log.error(message)
+            break
+        default:
+            throw new Exception("Unsupported log level ${level}")
+    }
+}

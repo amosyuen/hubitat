@@ -141,7 +141,7 @@ def updated() {
 }
 
 def init() {
-	logger.debug("init")
+	logMsg("debug", "init")
     unsubscribe()
     
 	createChildDeviceIfNotExist()
@@ -168,7 +168,7 @@ def createChildDeviceIfNotExist() {
 def createOrUpdateLabel(namespace, typeName, deviceNetworkId, label) {
     def child = getChildDevice(deviceNetworkId)
     if (!child) {
-        logger.info("createOrUpdateLabel: creating child device namespace=${namespace}, typeName=${typeName}, deviceNetworkId=${deviceNetworkId}, label=${label}")
+        logMsg("info", "createOrUpdateLabel: creating child device namespace=${namespace}, typeName=${typeName}, deviceNetworkId=${deviceNetworkId}, label=${label}")
         addChildDevice(namespace, typeName, deviceNetworkId, /*hubId=*/ null, [name: deviceNetworkId, label: label, completedSetup: true])
     }
 }
@@ -182,12 +182,12 @@ def getChildId() {
 //
 
 def switchOffHandler(evt) {
-    logger.debug("switchOffHandler: ${evt.getDevice()} ${evt.name}=${evt.value}")
+    logMsg("debug", "switchOffHandler: ${evt.getDevice()} ${evt.name}=${evt.value}")
     switchOff()
 }
 
 def levelHandler(evt) {
-    logger.debug("levelHandler: ${evt.getDevice()} ${evt.name}=${evt.value}")
+    logMsg("debug", "levelHandler: ${evt.getDevice()} ${evt.name}=${evt.value}")
     def value = evt.value as int
     if (value == 0) {
         switchOff()
@@ -206,7 +206,7 @@ def switchOff() {
 //
 
 def warmup() {
-    logger.debug("warmup")
+    logMsg("debug", "warmup")
     unschedule()
     
     setState(WARMUP)
@@ -226,7 +226,7 @@ def warmup() {
 }
 
 def start() {
-    logger.debug("start")
+    logMsg("debug", "start")
     unschedule()
     if (atomicState.state != STARTED && atomicState.state != SNOOZED) {
     	setSnoozeCount(0)
@@ -245,7 +245,7 @@ def start() {
 }
 
 def snooze() {
-    logger.debug("snooze")
+    logMsg("debug", "snooze")
     unschedule()
 	atomicState.startMillis = null
     
@@ -259,7 +259,7 @@ def snooze() {
 }
 
 def finish() {
-    logger.debug("finish")
+    logMsg("debug", "finish")
     unschedule()
 	atomicState.startMillis = null
     
@@ -304,7 +304,7 @@ def setFadeProgress(progress) {
 }
 
 def updateLightsWarmup(millis = null) {
-    logger.debug("updateLightsWarmup: millis=${millis}")
+    logMsg("debug", "updateLightsWarmup: millis=${millis}")
 	if (!updateLights(lightFadeSecondsStartWarmup, lightLevelStartWarmup, lightLevelEndWarmup,
                       lightColorTemperatureStartWarmup, lightColorTemperatureEndWarmup,
 					  updateIntervalSecondsWarmup, millis)) {
@@ -313,7 +313,7 @@ def updateLightsWarmup(millis = null) {
 }
 
 def updateLightsWakeup(millis = null) {
-    logger.debug("updateLightsWakeup: millis=${millis}")
+    logMsg("debug", "updateLightsWakeup: millis=${millis}")
 	if (!updateLights(lightFadeSecondsStart, lightLevelStart, lightLevelEnd,
                       lightColorTemperatureStart, lightColorTemperatureEnd,
 					  updateIntervalSeconds, millis)) {
@@ -326,14 +326,14 @@ def updateLights(lightFadeSecondsStart, lightLevelStart, lightLevelEnd,
 				 updateIntervalSeconds, millis = null) {
 	def startMillis = atomicState.startMillis
 	if (startMillis == null) {
-        logger.debug("updateLights: cancelled")
+        logMsg("debug", "updateLights: cancelled")
 		return false
 	}
 	if (millis != null) {
-        logger.debug("updateLights: start")
+        logMsg("debug", "updateLights: start")
 		setLights(lightLevelStart, lightColorTemperatureStart)
     	if (lightFadeSecondsStart == 0) {
-            logger.debug("updateLights: instant")
+            logMsg("debug", "updateLights: instant")
     		setFadeProgress(100)
     		return true
     	}
@@ -359,29 +359,47 @@ def updateLights(lightFadeSecondsStart, lightLevelStart, lightLevelEnd,
 }
 
 def setLights(level, colorTemperature, intervalSeconds = 0) {
-    logger.debug("setLights: level=${level}, colorTemperature=${colorTemperature}, intervalSeconds=${intervalSeconds}")
+    logMsg("debug", "setLights: level=${level}, colorTemperature=${colorTemperature}, intervalSeconds=${intervalSeconds}")
 	for (it in lights) {
 		if (it.currentLevel != level || (level > 0 && it.switch == "off")) {
 			if (intervalSeconds == 0) {
 				it.setLevel(level)
-				logger.trace("setLights: Setting ${it} level to ${level}")
+				logMsg("trace", "setLights: Setting ${it} level to ${level}")
 			} else {
 				it.setLevel(level, intervalSeconds)
-				logger.trace("setLights: Setting ${it} level to ${level} over ${intervalSeconds} seconds")
+				logMsg("trace", "setLights: Setting ${it} level to ${level} over ${intervalSeconds} seconds")
 			}
 		}
 		if (colorTemperature && it.hasCommand('setColorTemperature')
 				&& (it.currentColorMode != 'CT' || it.currentColorTemperature != colorTemperature)) {
 			it.setColorTemperature(colorTemperature)
-			logger.trace("setLights: Setting ${it} color temperature to ${colorTemperature}")
+			logMsg("trace", "setLights: Setting ${it} color temperature to ${colorTemperature}")
 		}
 	}
 }
 
-@Field final Map logger = [
-	trace: { if (traceLogging) { log.trace(it) } },
-	debug: { if (debugLogging) { log.debug(it) } },
-	info: { log.info(it) },
-	warn: { log.warn(it) },
-	error: { log.error(it) },
-]
+def logMsg(level, message) {
+    switch(level) {
+        case "trace":
+            if (traceLogging) {
+                log.trace(message)
+            }
+            break
+        case "debug":
+            if (debugLogging) {
+                log.debug(message)
+            }
+            break
+        case "info":
+            log.info(message)
+            break
+        case "warn":
+            log.warn(message)
+            break
+        case "error":
+            log.error(message)
+            break
+        default:
+            throw new Exception("Unsupported log level ${level}")
+    }
+}

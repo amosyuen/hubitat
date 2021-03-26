@@ -13,10 +13,12 @@
 			"name": "Eufy Security",
 			"namespace": "amosyuen",
 			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/eufysecurity/Eufy%20Security.groovy",
+			"betaLocation": "https://raw.githubusercontent.com/amosyuen/hubitat/main/eufysecurity/beta/Eufy%20Security.groovy",
 			"required": true,
 			"oauth": false,
 			"primary": true,
-			"version": "0.0.5"
+			"version": "0.0.5",
+			"betaVersion": "0.1.0"
 		}
 	],
 	"drivers": [
@@ -35,6 +37,15 @@
 			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/eufysecurity/Eufy%20Security%20Doorbell.groovy",
 			"required": true,
 			"version": "0.0.5"
+		},
+		{
+			"id": "5c835f30-8e65-11eb-8dcd-0242ac130003",
+			"name": "Eufy Security Floodlight Camera",
+			"namespace": "amosyuen",
+			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/eufysecurity/Eufy%20Security%20Floodlight%20Camera.groovy",
+			"betaLocation": "https://raw.githubusercontent.com/amosyuen/hubitat/main/eufysecurity/beta/Eufy%20Security%20Floodlight%20Camera.groovy",
+			"version": "0.0.0",
+			"betaVersion": "0.1.0"
 		},
 		{
 			"id": "458fd590-6b85-11eb-9439-0242ac130002",

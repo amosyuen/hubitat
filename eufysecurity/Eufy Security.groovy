@@ -11,6 +11,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY 
+ *	0.0.6 (2020-03-26) [Amos Yuen] Fix logging issues in closures
  *	0.0.5 (2020-03-09) [Amos Yuen] Decode all base64 params for log param changes
  *	0.0.3 (2020-02-16) [Amos Yuen] Another fix for two factor auth.
  *		- Have code re-login if domain changed on login.
@@ -23,7 +24,7 @@
 import groovy.transform.Field
 
 private def textVersion() {
-	return "Version: 0.0.5 - 2020-03-09"
+	return "Version: 0.0.6 - 2020-03-26"
 }
 
 private def textCopyright() {
@@ -124,7 +125,7 @@ def credentialsPage() {
 def setLoginError(msg, type = "Login") {
     state.loginErrors = msg ? "<b style='color:red'>${type} Error</b>\n${new Date()}\n${msg}" : null
     if (msg) {
-        logger.error("${type}: ${msg}")
+        logMsg("error", "${type}: ${msg}")
     }
 }
 
@@ -170,7 +171,7 @@ def getDevicesSelectedString() {
 def appButtonHandler(buttonPressed) {
     switch (buttonPressed) {
         case "login":
-            if (login(logger, /* login= */ true)) {
+            if (login(logMsg, /* login= */ true)) {
                 initPushNotifications()
             }
             break
@@ -179,7 +180,7 @@ def appButtonHandler(buttonPressed) {
             break
 		case "resetApiUrl":
 			state.apiUrl = BASE_API_URL
-			logger.info("appButtonHandler: Resetting base API URL to ${BASE_API_URL}")
+			logMsg("info", "appButtonHandler: Resetting base API URL to ${BASE_API_URL}")
 			break
     }
 }
@@ -200,7 +201,7 @@ def isLoggedIn() {
 }
 
 def initialize() {
-	logger.debug("initialize")
+	logMsg("debug", "initialize")
 
     if (!state.apiUrl) {
         state.apiUrl = BASE_API_URL
@@ -218,7 +219,7 @@ def initialize() {
 }
 
 def uninstalled() {
-	logger.info("uninstalled: Removing child devices...")
+	logMsg("info", "uninstalled: Removing child devices...")
 	unschedule()
 	getChildDevices().each {
 		deleteChildDevice(it.deviceNetworkId)
@@ -240,8 +241,8 @@ def String getErrorMessage(data) {
 	}
 }
 
-private def login(logger = logger, loginScreen = false) {  
-    logger.trace("login: loginScreen=${loginScreen}")
+private def login(logMsg = logMsg, loginScreen = false) {  
+    logMsg("trace", "login: loginScreen=${loginScreen}")
 	def data
 	try {
     	def body = [ email: email, password: password ]
@@ -273,7 +274,7 @@ private def login(logger = logger, loginScreen = false) {
         def newApiUrl = "https://${data.data.domain}/v1"
         if (newApiUrl != state.apiUrl) {
             state.apiUrl = newApiUrl
-            logger.info("login: Changing base API URL to ${newApiUrl}")
+            logMsg("info", "login: Changing base API URL to ${newApiUrl}")
             domainChange = true
         }
     }
@@ -296,7 +297,7 @@ private def login(logger = logger, loginScreen = false) {
     
     if (domainChange) {
         // Need to re-login if domain changed
-        return login(logger, loginScreen)
+        return login(logMsg, loginScreen)
     }
     
 	setLoginError(null)
@@ -318,9 +319,9 @@ def setAuthToken(data) {
 	state.authToken = data.data.auth_token
     def authTokenExpirationEpochMillis = data.data.token_expires_at * 1000L
 	atomicState.authTokenExpirationEpochMillis = authTokenExpirationEpochMillis
-	logger.debug("setAuthToken: userId=${state.userId}")
-	logger.debug("setAuthToken: authToken=${state.authToken}")
-	logger.debug("setAuthToken: authTokenExpirationEpochMillis=${authTokenExpirationEpochMillis}")
+	logMsg("debug", "setAuthToken: userId=${state.userId}")
+	logMsg("debug", "setAuthToken: authToken=${state.authToken}")
+	logMsg("debug", "setAuthToken: authTokenExpirationEpochMillis=${authTokenExpirationEpochMillis}")
 }
 
 private def requestAuthCode() {
@@ -342,7 +343,7 @@ def registerPushService() {
     def body = [
     ]
 	def data = fcmApiPOST("/installations", body)
-    logger.warn("registerPushService: ${data}")
+    logMsg("warn", "registerPushService: ${data}")
 }
 
 // Device Management
@@ -409,7 +410,7 @@ def isCamera(deviceType) {
 }
 
 def updateDeviceList(returnDeviceData = false) {
-	logger.info("updateDeviceList")
+	logMsg("info", "updateDeviceList")
 	if (!state.devices) {
 		state.devices = [:]
     }
@@ -417,7 +418,7 @@ def updateDeviceList(returnDeviceData = false) {
     def deviceData = [:]
     
 	def hubs = apiPOST("/app/get_hub_list")
-	logger.trace("updateDeviceList: hubs=${hubs}")
+	logMsg("trace", "updateDeviceList: hubs=${hubs}")
 	hubs.each {
         def deviceType = DEVICE_TYPE[it.device_type]
         if (deviceType == null) {
@@ -430,7 +431,7 @@ def updateDeviceList(returnDeviceData = false) {
 	}
     
 	def devices = apiPOST("/app/get_devs_list")
-	logger.trace("updateDeviceList: devices=${devices}")
+	logMsg("trace", "updateDeviceList: devices=${devices}")
 	devices.each {
         def deviceType = DEVICE_TYPE[it.device_type]
         if (deviceType == null) {
@@ -452,13 +453,13 @@ def syncChildDevices(deviceData) {
 		if (selectedDevices?.contains(it.deviceNetworkId)) {
 			return
 		}
-		logger.info("updateDevices: Deleting unselected device ${it.deviceNetworkId}")
+		logMsg("info", "updateDevices: Deleting unselected device ${it.deviceNetworkId}")
 		try {
 			deleteChildDevice(it.deviceNetworkId)
 		} catch (hubitat.exception.NotFoundException e) {
-			logger.warn("updateDevices: Could not find device ${it.deviceNetworkId}. Assuming manually deleted.")
+			logMsg("warn", "updateDevices: Could not find device ${it.deviceNetworkId}. Assuming manually deleted.")
 		} catch (hubitat.exception.ConflictException ce) {
-			logger.warn("updateDevices: Device ${it.deviceNetworkId} still in use. Please manually delete.")
+			logMsg("warn", "updateDevices: Device ${it.deviceNetworkId} still in use. Please manually delete.")
 		}
 	}
     
@@ -475,14 +476,14 @@ def syncChildDevices(deviceData) {
             } else if (isCamera(device.device_type)) {
                 driver = "Camera"
             } else {
-                logger.error("createDevicesIfNotExist: Unsupported device type: ${device.device_type}")
+                logMsg("error", "createDevicesIfNotExist: Unsupported device type: ${device.device_type}")
                 return
             }
             def data = [name: "Eufy Security ${driver}", label: name]
             childDevice = addChildDevice("amosyuen", "Eufy Security ${driver}", id, null, data)
-			logger.info("createDevicesIfNotExist: Added device id=${id}, name=${name}")
+			logMsg("info", "createDevicesIfNotExist: Added device id=${id}, name=${name}")
 		} else {
-			logger.info("createDevicesIfNotExist: Found existing device id=${id}, name=${name}")
+			logMsg("info", "createDevicesIfNotExist: Found existing device id=${id}, name=${name}")
 		}
 	}
 }
@@ -501,7 +502,7 @@ private def makeHttpCallAndHandleCode(methodFn, path, body = [:], refreshToken =
     def data = makeHttpCall(methodFn, path, body, refreshToken)
 	if (data.code != 0) {
         def errorMessage = getErrorMessage(data)
-        logger.error("makeHttpCallAndHandleCode: ${errorMessage}")
+        logMsg("error", "makeHttpCallAndHandleCode: ${errorMessage}")
 		throw new Exception(errorMessage)
 	}
     return data.data
@@ -509,10 +510,10 @@ private def makeHttpCallAndHandleCode(methodFn, path, body = [:], refreshToken =
 
 private def makeHttpCall(methodFn, path, body = [:], refreshToken = true) {
     def uri = "${apiUrl()}${path}"
-	def headers = apiRequestHeaders(logger, refreshToken)
+	def headers = apiRequestHeaders(logMsg, refreshToken)
 	def response
 	try {
-	    logger.trace("makeHttpCall methodFn=${methodFn},\nuri=${uri},\nbody=${body},\nheaders=${headers}")
+	    logMsg("trace", "makeHttpCall methodFn=${methodFn},\nuri=${uri},\nbody=${body},\nheaders=${headers}")
 		"${methodFn}"([
 			uri: uri,
 			body: body,
@@ -520,23 +521,23 @@ private def makeHttpCall(methodFn, path, body = [:], refreshToken = true) {
 			headers: headers
 		]) { response = it }
 	} catch (groovyx.net.http.HttpResponseException e) {
-		logger.error("makeHttpCall: HttpResponseException uri=${uri} status=${e.statusCode}, body=${e.getResponse().getData()}")
+		logMsg("error", "makeHttpCall: HttpResponseException uri=${uri} status=${e.statusCode}, body=${e.getResponse().getData()}")
 		if (e.statusCode == 401) {
 			// OAuth token is expired
 			state.authToken = null
-			logger.warn("makeHttpCall: Invalid access token. Need to login again. uri=${uri}")
+			logMsg("warn", "makeHttpCall: Invalid access token. Need to login again. uri=${uri}")
 		}
 		throw e
 	} catch (java.net.SocketTimeoutException e) {
-		logger.warn("makeHttpCall: Connection timed out. uri=${uri}", e)
+		logMsg("warn", "makeHttpCall: Connection timed out. uri=${uri}", e)
 		throw e
 	}
 	
 	if (response.status >= 400) {
-		logger.error("makeHttpCall: Error response uri=${uri} status=${response.status}, data=${response.data}")
+		logMsg("error", "makeHttpCall: Error response uri=${uri} status=${response.status}, data=${response.data}")
         throw new Exception("Error response uri=${uri} status=${response.status}, data=${response.data}")
 	}
-	logger.trace("makeHttpCall: uri=${uri} status=${response.status}, data=${response.data}")
+	logMsg("trace", "makeHttpCall: uri=${uri} status=${response.status}, data=${response.data}")
 	return response.data
 }
 
@@ -547,11 +548,11 @@ def apiUrl() {
     return state.apiUrl
 }
 
-Map apiRequestHeaders(logger, refreshToken = true) {
+Map apiRequestHeaders(logMsg, refreshToken = true) {
 	if (refreshToken && (!state.authToken || now() > atomicState.authTokenExpirationEpochMillis)) {
-		logger.debug("apiRequestHeaders: Renewing access token")
-		if (!login(logger)) {
-			logger.error("apiRequestHeaders: Access token is invalid")
+		logMsg("debug", "apiRequestHeaders: Renewing access token")
+		if (!login(logMsg)) {
+			logMsg("error", "apiRequestHeaders: Access token is invalid")
 			throw new Exception("Access token is invalid")
 		}
 	}
@@ -578,7 +579,7 @@ Map apiRequestHeaders(logger, refreshToken = true) {
 @Field static final String AUTH_VERSION = "FIS_v2"
 
 private def initPushNotifications() {
-    logger.trace("initPushNotifications")
+    logMsg("trace", "initPushNotifications")
     return
     def refreshMillis = state.firebaseAuthToken ? Math.max(0, state.firebaseAuthTokenExpirationEpochMillis - now() - 500) : 0
     def refresh = false
@@ -601,7 +602,7 @@ private def initPushNotifications() {
 }
 
 private def loginFirebase() {  
-    logger.trace("loginFirebase")
+    logMsg("trace", "loginFirebase")
     def refresh = state.fid != null
     def uri = "https://firebaseinstallations.googleapis.com/v1/projects/${FCM_PROJECT_ID}/installations"
     	def body
@@ -625,7 +626,7 @@ private def loginFirebase() {
     }
 	def response
 	try {
-	    logger.trace("loginFirebase \nuri=${uri},\nbody=${body},\nheaders=${headers}")
+	    logMsg("trace", "loginFirebase \nuri=${uri},\nbody=${body},\nheaders=${headers}")
         httpPost([
 			uri: uri,
 			body: body,
@@ -639,10 +640,10 @@ private def loginFirebase() {
 	        state.firebaseAuthToken = null
 	        state.firebaseAuthTokenExpirationEpochMillis = null
         }
-		logger.error("loginFirebase: status=${e.statusCode}\ndata=${e.getResponse().getData()}")
+		logMsg("error", "loginFirebase: status=${e.statusCode}\ndata=${e.getResponse().getData()}")
 		return false
 	} catch (Exception e) {
-        logger.error("loginFirebase: ${e}")
+        logMsg("error", "loginFirebase: ${e}")
 		return false
 	}
     
@@ -657,9 +658,9 @@ private def loginFirebase() {
     }
     state.firebaseAuthToken = authToken.token
     state.firebaseAuthTokenExpirationEpochMillis = getExpiresInMs(authToken.expiresIn)
-    logger.debug("loginFirebase: fid=${state.fid}")
-    logger.debug("loginFirebase: fcmAuthToken=${state.firebaseAuthToken}")
-    logger.debug("loginFirebase: fcmAuthTokenExpirationEpochMillis=${state.firebaseAuthTokenExpirationEpochMillis}")
+    logMsg("debug", "loginFirebase: fid=${state.fid}")
+    logMsg("debug", "loginFirebase: fcmAuthToken=${state.firebaseAuthToken}")
+    logMsg("debug", "loginFirebase: fcmAuthTokenExpirationEpochMillis=${state.firebaseAuthTokenExpirationEpochMillis}")
     
 	return true
 }
@@ -675,7 +676,7 @@ private def getExpiresInMs(expiresIn) {
 }
 
 private def checkinAndroid() {  
-    logger.trace("checkinAndroid")
+    logMsg("trace", "checkinAndroid")
 	def response
 	try {
     	def body = [
@@ -693,25 +694,25 @@ private def checkinAndroid() {
 	        state.checkinAndroidId = null
 	        state.checkinAndroidSecurityToken = null
         }
-		logger.error("checkinAndroid: status=${e.statusCode}\ndata=${e.getResponse().getData()}")
+		logMsg("error", "checkinAndroid: status=${e.statusCode}\ndata=${e.getResponse().getData()}")
 		return false
 	} catch (Exception e) {
-        logger.error("checkinAndroid: ${e}")
+        logMsg("error", "checkinAndroid: ${e}")
 		return false
 	}
     
     def data = response.data
-	logger.trace("checkinAndroid: status=${response.status}, data=${data}")
+	logMsg("trace", "checkinAndroid: status=${response.status}, data=${data}")
     state.checkinAndroidId = data.android_id
     state.checkinAndroidSecurityToken = data.security_token
-	logger.debug("checkinAndroid: checkinAndroidId=${state.checkinAndroidId}")
-	logger.debug("checkinAndroid: checkinAndroidSecurityToken=${state.checkinAndroidSecurityToken}")
+	logMsg("debug", "checkinAndroid: checkinAndroidId=${state.checkinAndroidId}")
+	logMsg("debug", "checkinAndroid: checkinAndroidSecurityToken=${state.checkinAndroidSecurityToken}")
     
 	return true
 }
 
 private def registerGCM() {  
-    logger.trace("registerGCM")
+    logMsg("trace", "registerGCM")
 	def response
 	try {
     	def body = [
@@ -734,21 +735,21 @@ private def registerGCM() {
         if (e.statusCode == 401) {
 	        state.gcmToken = null
         }
-		logger.error("registerGCM: status=${e.statusCode}\ndata=${e.getResponse().getData()}")
+		logMsg("error", "registerGCM: status=${e.statusCode}\ndata=${e.getResponse().getData()}")
 		return false
 	} catch (Exception e) {
-		logger.error("registerGCM: ${e}")
+		logMsg("error", "registerGCM: ${e}")
 		return false
 	}
     
     def data = response.data
-	logger.trace("registerGCM: status=${response.status}, data=${data}")
+	logMsg("trace", "registerGCM: status=${response.status}, data=${data}")
     if (data.Error) {
-		logger.error("registerGCM: ${data.Error}")
+		logMsg("error", "registerGCM: ${data.Error}")
 		return false
     }
     state.gcmToken = data.token
-	logger.debug("registerGCM: token=${state.gcmToken}")
+	logMsg("debug", "registerGCM: token=${state.gcmToken}")
     
 	return true
 }
@@ -763,10 +764,28 @@ def decodeBase64Json(String value) {
     return new groovy.json.JsonSlurper().parseText(json)
 }
 
-@Field final Map logger = [
-	trace: { if (traceLogging) { log.trace(it) } },
-	debug: { if (debugLogging) { log.debug(it) } },
-	info: { log.info(it) },
-	warn: { log.warn(it) },
-	error: { log.error(it) },
-]
+def logMsg(level, message) {
+    switch(level) {
+        case "trace":
+            if (traceLogging) {
+                log.trace(message)
+            }
+            break
+        case "debug":
+            if (debugLogging) {
+                log.debug(message)
+            }
+            break
+        case "info":
+            log.info(message)
+            break
+        case "warn":
+            log.warn(message)
+            break
+        case "error":
+            log.error(message)
+            break
+        default:
+            throw new Exception("Unsupported log level ${level}")
+    }
+}

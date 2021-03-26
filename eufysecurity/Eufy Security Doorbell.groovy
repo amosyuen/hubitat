@@ -9,6 +9,7 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
+ *	0.0.6 (2020-03-26) [Amos Yuen] Fix logging issues in closures
  *	0.0.5 (2020-03-09) [Amos Yuen] Add support for battery
  *		- Fix isStation check
  *		- Decode all base64 params for log param changes
@@ -25,7 +26,7 @@ import groovy.json.JsonOutput
 import groovy.transform.Field
 
 private def textVersion() {
-	return "Version: 0.0.5 - 2020-03-09"
+	return "Version: 0.0.6 - 2020-03-26"
 }
 
 private def textCopyright() {
@@ -145,7 +146,7 @@ def updated() {
 }
 
 def init() {
-	logger.info("init")
+	logMsg("info", "init")
 	unschedule()
 	
 	sendEvent(name: "version", value: textVersion(), displayed: false)
@@ -159,47 +160,47 @@ def init() {
 //
 
 def on() {
-	logger.debug("on")
+	logMsg("debug", "on")
     setParams([(PARAM_TYPE_ON): true])
 }
 
 def off() {
-	logger.debug("off")
+	logMsg("debug", "off")
     setParams([(PARAM_TYPE_ON): false])
 }
 
 def audioRecordingOn() {
-	logger.debug("audioRecordingOn")
+	logMsg("debug", "audioRecordingOn")
     setParams([(PARAM_TYPE_AUDIO_RECORDING): 1])
 }
 
 def audioRecordingOff() {
-	logger.debug("audioRecordingOff")
+	logMsg("debug", "audioRecordingOff")
     setParams([(PARAM_TYPE_AUDIO_RECORDING): 0])
 }
 
 def autoNightVisionOn() {
-	logger.debug("autoNightVisionOn")
+	logMsg("debug", "autoNightVisionOn")
     setParams([(PARAM_TYPE_AUTO_NIGHT_VISION): true])
 }
 
 def autoNightVisionOff() {
-	logger.debug("autoNightVisionOff")
+	logMsg("debug", "autoNightVisionOff")
     setParams([(PARAM_TYPE_AUTO_NIGHT_VISION): false])
 }
 
 def motionDetectionOn() {
-	logger.debug("motionDetectionOn")
+	logMsg("debug", "motionDetectionOn")
     setParams([(PARAM_TYPE_MOTION_DETECTION): 1])
 }
 
 def motionDetectionOff() {
-	logger.debug("motionDetectionOff")
+	logMsg("debug", "motionDetectionOff")
     setParams([(PARAM_TYPE_MOTION_DETECTION): 0])
 }
 
 def setDetectionSensitivity(value) {
-	logger.debug("setDetectionSensitivity: value=${value}")
+	logMsg("debug", "setDetectionSensitivity: value=${value}")
     if (value < 0) {
         throw new Exception("Sensitivity ${value} must be at least 0")
     }
@@ -207,7 +208,7 @@ def setDetectionSensitivity(value) {
 }
 
 def setDetectionType(value) {
-	logger.debug("setDetectionType: value=${value}")
+	logMsg("debug", "setDetectionType: value=${value}")
     value = DETECTION_TYPE_REVERSE[value]
     if (!value) {
         throw new Exception("Detection type ${value} is not supported!")
@@ -216,7 +217,7 @@ def setDetectionType(value) {
 }
 
 def setMode(mode) {
-	logger.debug("setMode: mode=${mode}")
+	logMsg("debug", "setMode: mode=${mode}")
 	if (!isStation()) {
 		throw new Exception("Doorbell does not have hub mode. Please change mode through the station instead.")
 	}
@@ -229,7 +230,7 @@ def setMode(mode) {
 }
 
 def setPollIntervalSeconds(seconds) {
-    logger.debug("setPollIntervalSeconds: seconds=${seconds}")
+    logMsg("debug", "setPollIntervalSeconds: seconds=${seconds}")
 	unschedule(poll)
     if (seconds == null) {
         seconds = "null"
@@ -262,7 +263,7 @@ def setPollIntervalSeconds(seconds) {
 }
 
 def snooze(type, seconds) {
-    logger.debug("snooze: type=${type}, seconds=${seconds}")
+    logMsg("debug", "snooze: type=${type}, seconds=${seconds}")
     if (seconds < 1) {
         throw new Exception("Snooze seconds ${seconds} must be greater than or equal to 1")
     }
@@ -291,7 +292,7 @@ def snooze(type, seconds) {
         snooze_time: seconds,
         startTime: startSeconds
     ]).toString()
-    logger.debug("snooze: snoozeTypeJson=${snoozeTypeJson}")
+    logMsg("debug", "snooze: snoozeTypeJson=${snoozeTypeJson}")
     setParams([
         (PARAM_TYPE_SNOOZE_START_SECONDS): startSeconds + 1,
         (PARAM_TYPE_SNOOZE_TYPE): snoozeTypeJson.bytes.encodeBase64().toString(),
@@ -299,12 +300,12 @@ def snooze(type, seconds) {
 }
 
 def snoozeClear() {
-	logger.debug("snoozeClear")
+	logMsg("debug", "snoozeClear")
     setParams([(PARAM_TYPE_SNOOZE_TYPE): ""])
 }
 
 def setParams(paramsMap) {
-    logger.debug("setParams: paramsMap=${paramsMap}")
+    logMsg("debug", "setParams: paramsMap=${paramsMap}")
     
     def params = []
     paramsMap.each { params.add([param_type: it.key, param_value: it.value.toString()]) }
@@ -319,7 +320,7 @@ def setParams(paramsMap) {
 }
 
 def setHubParams(paramsMap) {
-    logger.debug("setHubParams: paramsMap=${paramsMap}")
+    logMsg("debug", "setHubParams: paramsMap=${paramsMap}")
     
     def params = []
     paramsMap.each { params.add([param_type: it.key, param_value: it.value.toString()]) }
@@ -345,7 +346,7 @@ def isStation() {
 }
 
 def refresh() {
-	logger.info("refresh")
+	logMsg("info", "refresh")
     refreshParams()
 	if (isStation()) {
     	refreshHubParams()
@@ -433,7 +434,7 @@ def refreshHubParam(param) {
 def parseStringBooleanParam(name, param, onValue = true, offValue = false) {
     def value = param.param_value == "true"
     if (param.param_value != "true" && param.param_value != "false") {
-        logger.error("parseStringBooleanParam: Unsupported param name=${name} value=${param.param_value}")
+        logMsg("error", "parseStringBooleanParam: Unsupported param name=${name} value=${param.param_value}")
         value = "null"
     }
     sendEvent(name: name, value: value ? onValue : offValue, displayed: true)
@@ -442,7 +443,7 @@ def parseStringBooleanParam(name, param, onValue = true, offValue = false) {
 def parseIntBooleanParam(name, param, onValue = true, offValue = false) {
     def value = param.param_value as int
     if (value > 1 || value < 0) {
-        logger.error("parseIntBooleanParam: Unsupported param name=${name} value=${param.param_value}")
+        logMsg("error", "parseIntBooleanParam: Unsupported param name=${name} value=${param.param_value}")
         value = "null"
     }
     sendEvent(name: name, value: value == 1 ? onValue : offValue, displayed: true)
@@ -451,7 +452,7 @@ def parseIntBooleanParam(name, param, onValue = true, offValue = false) {
 def parseNonNegativeIntParam(name, param) {
     def value = param.param_value as int
     if (value < 0) {
-        logger.error("parseNonNegativeInt: Unsupported param name=${name} value=${param.param_value}")
+        logMsg("error", "parseNonNegativeInt: Unsupported param name=${name} value=${param.param_value}")
         value = "null"
     }
     sendEvent(name: name, value: value, displayed: true)
@@ -460,20 +461,20 @@ def parseNonNegativeIntParam(name, param) {
 def parseEnumParam(name, map, param) {
     def value = map[param.param_value]
     if (value == null) {
-        logger.error("parseEnumParam: Unsupported param name=${name} value=${param.param_value}")
+        logMsg("error", "parseEnumParam: Unsupported param name=${name} value=${param.param_value}")
         value = "null"
     }
     sendEvent(name: name, value: value, displayed: true)
 }
 
 def parseSnooze(param) {
-    logger.trace("parseSnooze param=${param}")
+    logMsg("trace", "parseSnooze param=${param}")
     def snoozeType = "null"
     def snoozeDurationSeconds = 0
     def snoozeStartEpochSeconds = 0
     if (param.param_value.size() > 0) { 
         def data = parent.decodeBase64Json(param.param_value)
-        logger.trace("parseSnooze data=${data}")
+        logMsg("trace", "parseSnooze data=${data}")
         def chime = data.chime_onoff == 1
         def motion = data.motion_on_off == 1
         if (chime) {
@@ -546,9 +547,9 @@ def apiPOST(path, body) {
 }
 
 private def makeHttpCall(methodFn, path, body = [:], refreshToken = true) {
-	def headers = parent.apiRequestHeaders(logger, refreshToken)
+	def headers = parent.apiRequestHeaders(logMsg, refreshToken)
     def uri = "${parent.apiUrl()}${path}"
-	logger.trace("makeHttpCall methodFn=${methodFn},\nuri=${uri},\nbody=${body},\nheaders=${headers}")
+	logMsg("trace", "makeHttpCall methodFn=${methodFn},\nuri=${uri},\nbody=${body},\nheaders=${headers}")
 	def response
 	handleHttpErrors() {
 		"${methodFn}"([
@@ -566,15 +567,15 @@ def handleHttpErrors(Closure callback) {
 	try {
 		callback()
 	} catch (groovyx.net.http.HttpResponseException e) {
-		logger.error("handleHttpErrors: HttpResponseException status=${e.statusCode}, body=${e.getResponse().getData()}")
+		logMsg("error", "handleHttpErrors: HttpResponseException status=${e.statusCode}, body=${e.getResponse().getData()}")
 		if (e.statusCode == 401) {
 			// OAuth token is expired
 			parent.clearAuthToken()
-			logger.warn("handleHttpErrors: Invalid access token. Need to login again.")
+			logMsg("warn", "handleHttpErrors: Invalid access token. Need to login again.")
 		}
 		throw e
 	} catch (java.net.SocketTimeoutException e) {
-		logger.warn("handleHttpErrors: Connection timed out", e)
+		logMsg("warn", "handleHttpErrors: Connection timed out", e)
 		throw e
 	}
 }
@@ -587,7 +588,7 @@ def handleErrors(status, data) {
 	if (status >= 400) {
         throw new Exception("Error status=${status}, data=${data}")
 	}
-	logger.trace("handleErrors: status=${status}, data=${data}")
+	logMsg("trace", "handleErrors: status=${status}, data=${data}")
 	if (data.code != 0) {
         def errorMessage = parent.getErrorMessage(data)
 		throw new Exception(errorMessage)
@@ -595,10 +596,28 @@ def handleErrors(status, data) {
 	return data.data
 }
 
-@Field final Map logger = [
-	trace: { if (traceLogging) { log.trace(it) } },
-	debug: { if (debugLogging) { log.debug(it) } },
-	info: { log.info(it) },
-	warn: { log.warn(it) },
-	error: { log.error(it) },
-]
+def logMsg(level, message) {
+    switch(level) {
+        case "trace":
+            if (traceLogging) {
+                log.trace(message)
+            }
+            break
+        case "debug":
+            if (debugLogging) {
+                log.debug(message)
+            }
+            break
+        case "info":
+            log.info(message)
+            break
+        case "warn":
+            log.warn(message)
+            break
+        case "error":
+            log.error(message)
+            break
+        default:
+            throw new Exception("Unsupported log level ${level}")
+    }
+}

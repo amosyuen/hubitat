@@ -9,6 +9,7 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
+ *	0.0.6 (2020-03-26) [Amos Yuen] Fix logging issues in closures
  *	0.0.5 (2020-03-09) [Amos Yuen] Decode all base64 params for log param changes
  *	0.0.2 (2020-02-16) [Amos Yuen] Add setting to log param changes for debugging
  *		- Support hourly and daily poll intervals up to 28 days
@@ -21,7 +22,7 @@ import groovy.json.JsonOutput
 import groovy.transform.Field
 
 private def textVersion() {
-	return "Version: 0.0.5 - 2020-03-09"
+	return "Version: 0.0.6 - 2020-03-26"
 }
 
 private def textCopyright() {
@@ -86,7 +87,7 @@ def updated() {
 }
 
 def init() {
-	logger.info("init")
+	logMsg("info", "init")
 	unschedule()
 	
 	sendEvent(name: "version", value: textVersion(), displayed: false)
@@ -100,7 +101,7 @@ def init() {
 //
 
 def setMode(mode) {
-	logger.debug("setMode: mode=${mode}")
+	logMsg("debug", "setMode: mode=${mode}")
     def modeValue = MODE_REVERSE[mode]
     if (!modeValue) {
         throw new Exception("Mode ${mode} is not supported!")
@@ -110,7 +111,7 @@ def setMode(mode) {
 }
 
 def setPollIntervalSeconds(seconds) {
-    logger.debug("setPollIntervalSeconds: seconds=${seconds}")
+    logMsg("debug", "setPollIntervalSeconds: seconds=${seconds}")
 	unschedule(poll)
     if (seconds == null) {
         seconds = "null"
@@ -143,7 +144,7 @@ def setPollIntervalSeconds(seconds) {
 }
 
 def setHubParams(paramsMap) {
-    logger.debug("setHubParams: paramsMap=${paramsMap}")
+    logMsg("debug", "setHubParams: paramsMap=${paramsMap}")
     
     def params = []
     paramsMap.each { params.add([param_type: it.key, param_value: it.value.toString()]) }
@@ -165,7 +166,7 @@ def poll() {
 }
 
 def refresh() {
-	logger.info("refresh")
+	logMsg("info", "refresh")
     refreshHubParams()
 }
 
@@ -202,7 +203,7 @@ def refreshHubParam(param) {
 def parseEnumParam(name, map, param) {
     def value = map[param.param_value]
     if (value == null) {
-        logger.error("parseEnumParam: Unsupported param name=${name} value=${param.param_value}")
+        logMsg("error", "parseEnumParam: Unsupported param name=${name} value=${param.param_value}")
         value = "null"
     }
     sendEvent(name: name, value: value, displayed: true)
@@ -260,9 +261,9 @@ def apiPOST(path, body) {
 }
 
 private def makeHttpCall(methodFn, path, body = [:], refreshToken = true) {
-	def headers = parent.apiRequestHeaders(logger, refreshToken)
+	def headers = parent.apiRequestHeaders(logMsg, refreshToken)
     def uri = "${parent.apiUrl()}${path}"
-	logger.trace("makeHttpCall methodFn=${methodFn},\nuri=${uri},\nbody=${body},\nheaders=${headers}")
+	logMsg("trace", "makeHttpCall methodFn=${methodFn},\nuri=${uri},\nbody=${body},\nheaders=${headers}")
 	def response
 	handleHttpErrors() {
 		"${methodFn}"([
@@ -280,15 +281,15 @@ def handleHttpErrors(Closure callback) {
 	try {
 		callback()
 	} catch (groovyx.net.http.HttpResponseException e) {
-		logger.error("handleHttpErrors: HttpResponseException status=${e.statusCode}, body=${e.getResponse().getData()}")
+		logMsg("error", "handleHttpErrors: HttpResponseException status=${e.statusCode}, body=${e.getResponse().getData()}")
 		if (e.statusCode == 401) {
 			// OAuth token is expired
 			parent.clearAuthToken()
-			logger.warn("handleHttpErrors: Invalid access token. Need to login again.")
+			logMsg("warn", "handleHttpErrors: Invalid access token. Need to login again.")
 		}
 		throw e
 	} catch (java.net.SocketTimeoutException e) {
-		logger.warn("handleHttpErrors: Connection timed out", e)
+		logMsg("warn", "handleHttpErrors: Connection timed out", e)
 		throw e
 	}
 }
@@ -301,7 +302,7 @@ def handleErrors(status, data) {
 	if (status >= 400) {
         throw new Exception("Error status=${status}, data=${data}")
 	}
-	logger.trace("handleErrors: status=${status}, data=${data}")
+	logMsg("trace", "handleErrors: status=${status}, data=${data}")
 	if (data.code != 0) {
         def errorMessage = parent.getErrorMessage(data)
 		throw new Exception(errorMessage)
@@ -309,10 +310,28 @@ def handleErrors(status, data) {
 	return data.data
 }
 
-@Field final Map logger = [
-	trace: { if (traceLogging) { log.trace(it) } },
-	debug: { if (debugLogging) { log.debug(it) } },
-	info: { log.info(it) },
-	warn: { log.warn(it) },
-	error: { log.error(it) },
-]
+def logMsg(level, message) {
+    switch(level) {
+        case "trace":
+            if (traceLogging) {
+                log.trace(message)
+            }
+            break
+        case "debug":
+            if (debugLogging) {
+                log.debug(message)
+            }
+            break
+        case "info":
+            log.info(message)
+            break
+        case "warn":
+            log.warn(message)
+            break
+        case "error":
+            log.error(message)
+            break
+        default:
+            throw new Exception("Unsupported log level ${level}")
+    }
+}

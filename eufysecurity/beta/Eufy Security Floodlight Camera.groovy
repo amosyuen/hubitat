@@ -9,14 +9,14 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
- *	0.1.0 (2021-03-26) [Amos Yuen] Initial Release
+ *	0.1.1 (2021-03-26) [Amos Yuen] Initial Release
  */
 
 import groovy.json.JsonOutput
 import groovy.transform.Field
 
 private def textVersion() {
-	return "Version: 0.1.0 - 2021-03-26"
+	return "Version: 0.1.1 - 2021-03-26"
 }
 
 private def textCopyright() {
@@ -138,7 +138,7 @@ def updated() {
 }
 
 def init() {
-	logger.info("init")
+	logMsg("info", "init")
 	unschedule()
 	
 	sendEvent(name: "version", value: textVersion(), displayed: false)
@@ -152,57 +152,57 @@ def init() {
 //
 
 def on() {
-	logger.debug("on")
+	logMsg("debug", "on")
     setParams([(PARAM_TYPE_OFF): 0])
 }
 
 def off() {
-	logger.debug("off")
+	logMsg("debug", "off")
     setParams([(PARAM_TYPE_OFF): 1])
 }
 
 def audioRecordingOn() {
-	logger.debug("audioRecordingOn")
+	logMsg("debug", "audioRecordingOn")
     setParams([(PARAM_TYPE_AUDIO_RECORDING): 1])
 }
 
 def audioRecordingOff() {
-	logger.debug("audioRecordingOff")
+	logMsg("debug", "audioRecordingOff")
     setParams([(PARAM_TYPE_AUDIO_RECORDING): 0])
 }
 
 def autoNightVisionOn() {
-	logger.debug("autoNightVisionOn")
+	logMsg("debug", "autoNightVisionOn")
     setParams([(PARAM_TYPE_AUTO_NIGHT_VISION): 1])
 }
 
 def autoNightVisionOff() {
-	logger.debug("autoNightVisionOff")
+	logMsg("debug", "autoNightVisionOff")
     setParams([(PARAM_TYPE_AUTO_NIGHT_VISION): 0])
 }
 
 def floodlightOn() {
-	logger.debug("floodlightOn")
+	logMsg("debug", "floodlightOn")
     setParams([(PARAM_TYPE_FLOODLIGHT_ON): true])
 }
 
 def floodlightOff() {
-	logger.debug("floodlightOff")
+	logMsg("debug", "floodlightOff")
     setParams([(PARAM_TYPE_FLOODLIGHT_ON): false])
 }
 
 def motionDetectionOn() {
-	logger.debug("motionDetectionOn")
+	logMsg("debug", "motionDetectionOn")
     setParams([(PARAM_TYPE_MOTION_DETECTION): 1])
 }
 
 def motionDetectionOff() {
-	logger.debug("motionDetectionOff")
+	logMsg("debug", "motionDetectionOff")
     setParams([(PARAM_TYPE_MOTION_DETECTION): 0])
 }
 
 def setDetectionSensitivity(value) {
-	logger.debug("setDetectionSensitivity: value=${value}")
+	logMsg("debug", "setDetectionSensitivity: value=${value}")
     if (value < 0) {
         throw new Exception("Sensitivity ${value} must be at least 0")
     }
@@ -210,7 +210,7 @@ def setDetectionSensitivity(value) {
 }
 
 def setDetectionType(value) {
-	logger.debug("setDetectionType: value=${value}")
+	logMsg("debug", "setDetectionType: value=${value}")
     value = DETECTION_TYPE_REVERSE[value]
     if (!value) {
         throw new Exception("Detection type ${value} is not supported!")
@@ -219,7 +219,7 @@ def setDetectionType(value) {
 }
 
 def setFloodlightBrightness(value) {
-	logger.debug("setFloodlightBrightness: value=${value}")
+	logMsg("debug", "setFloodlightBrightness: value=${value}")
     if (value < 0 || value > 100) {
         throw new Exception("Floodlight brightness ${value} must be from 0 to 100 inclusive.")
     }
@@ -227,7 +227,7 @@ def setFloodlightBrightness(value) {
 }
 
 def setPollIntervalSeconds(seconds) {
-    logger.debug("setPollIntervalSeconds: seconds=${seconds}")
+    logMsg("debug", "setPollIntervalSeconds: seconds=${seconds}")
 	unschedule(poll)
     if (seconds == null) {
         seconds = "null"
@@ -260,7 +260,7 @@ def setPollIntervalSeconds(seconds) {
 }
 
 def setPowerMode(value) {
-	logger.debug("setPowerMode: value=${value}")
+	logMsg("debug", "setPowerMode: value=${value}")
     value = POWER_MODE_REVERSE[value]
     if (!value) {
         throw new Exception("Power mode ${value} is not supported!")
@@ -269,7 +269,7 @@ def setPowerMode(value) {
 }
 
 def setRecordClipLength(value) {
-	logger.debug("setRecordClipLength: value=${value}")
+	logMsg("debug", "setRecordClipLength: value=${value}")
     if (value <= 0) {
         throw new Exception("Clip length seconds ${value} must be greater than 0")
     }
@@ -277,7 +277,7 @@ def setRecordClipLength(value) {
 }
 
 def setRecordRetriggerInterval(value) {
-	logger.debug("setRecordRetriggerInterval: value=${value}")
+	logMsg("debug", "setRecordRetriggerInterval: value=${value}")
     if (value <= 0) {
         throw new Exception("Retrigger interval seconds ${value} must be greater than 0")
     }
@@ -285,7 +285,7 @@ def setRecordRetriggerInterval(value) {
 }
 
 def snooze(seconds) {
-    logger.debug("snooze: seconds=${seconds}")
+    logMsg("debug", "snooze: seconds=${seconds}")
     if (seconds < 1) {
         throw new Exception("Snooze seconds ${seconds} must be greater than or equal to 1")
     }
@@ -297,19 +297,19 @@ def snooze(seconds) {
         snooze_time: seconds,
         startTime: startSeconds,
     ]).toString()
-    logger.debug("snooze: snoozeTypeJson=${snoozeTypeJson}")
+    logMsg("debug", "snooze: snoozeTypeJson=${snoozeTypeJson}")
     setParams([
         (PARAM_TYPE_SNOOZE_TYPE): snoozeTypeJson.bytes.encodeBase64().toString(),
     ])
 }
 
 def snoozeClear() {
-	logger.debug("snoozeClear")
+	logMsg("debug", "snoozeClear")
     setParams([(PARAM_TYPE_SNOOZE_TYPE): ""])
 }
 
 def setParam(type, value) {
-    logger.debug("setParam: type=${type}, value=${value}")
+    logMsg("debug", "setParam: type=${type}, value=${value}")
     
     def body = [
         device_sn: device.deviceNetworkId,
@@ -321,7 +321,7 @@ def setParam(type, value) {
 }
 
 def setParams(paramsMap) {
-    logger.debug("setParams: paramsMap=${paramsMap}")
+    logMsg("debug", "setParams: paramsMap=${paramsMap}")
     
     def params = []
     paramsMap.each { params.add([param_type: it.key, param_value: it.value.toString()]) }
@@ -344,7 +344,7 @@ def poll() {
 }
 
 def refresh() {
-	logger.info("refresh")
+	logMsg("info", "refresh")
     refreshParams()
 }
 
@@ -412,7 +412,7 @@ def refreshParam(param) {
 def parseBooleanParam(name, param, onValue = true, offValue = false) {
     def value = param.param_value as int
     if (value > 1 || value < 0) {
-        logger.error("parseBooleanParam: Unsupported param name=${name} value=${param.param_value}")
+        logMsg("error", "parseBooleanParam: Unsupported param name=${name} value=${param.param_value}")
         value = "null"
     }
     sendEvent(name: name, value: value == 1 ? onValue : offValue, displayed: true)
@@ -421,7 +421,7 @@ def parseBooleanParam(name, param, onValue = true, offValue = false) {
 def parseNonNegativeIntParam(name, param) {
     def value = param.param_value as int
     if (value < 0) {
-        logger.error("parseNonNegativeInt: Unsupported param name=${name} value=${param.param_value}")
+        logMsg("error", "parseNonNegativeInt: Unsupported param name=${name} value=${param.param_value}")
         value = "null"
     }
     sendEvent(name: name, value: value, displayed: true)
@@ -430,19 +430,19 @@ def parseNonNegativeIntParam(name, param) {
 def parseEnumParam(name, map, param) {
     def value = map[param.param_value]
     if (value == null) {
-        logger.error("parseEnumParam: Unsupported param name=${name} value=${param.param_value}")
+        logMsg("error", "parseEnumParam: Unsupported param name=${name} value=${param.param_value}")
         value = "null"
     }
     sendEvent(name: name, value: value, displayed: true)
 }
 
 def parseSnooze(param) {
-    logger.trace("parseSnooze param=${param}")
+    logMsg("trace", "parseSnooze param=${param}")
 	unschedule(snoozeClear)
     def snoozeDurationSeconds = 0
     if (param.param_value.size() > 0) { 
         def data = parent.decodeBase64Json(param.param_value)
-        logger.trace("parseSnooze data=${data}")
+        logMsg("trace", "parseSnooze data=${data}")
         snoozeDurationSeconds = data.snooze_time
         snoozeStartEpochSeconds = data.startTime
 		if (snoozeStartEpochSeconds) {
@@ -503,9 +503,9 @@ def apiPOST(path, body) {
 }
 
 private def makeHttpCall(methodFn, path, body = [:], refreshToken = true) {
-	def headers = parent.apiRequestHeaders(logger, refreshToken)
+	def headers = parent.apiRequestHeaders(logMsg, refreshToken)
     def uri = "${parent.apiUrl()}${path}"
-	logger.trace("makeHttpCall methodFn=${methodFn},\nuri=${uri},\nbody=${body},\nheaders=${headers}")
+	logMsg("trace", "makeHttpCall methodFn=${methodFn},\nuri=${uri},\nbody=${body},\nheaders=${headers}")
 	def response
 	handleHttpErrors() {
 		"${methodFn}"([
@@ -523,15 +523,15 @@ def handleHttpErrors(Closure callback) {
 	try {
 		callback()
 	} catch (groovyx.net.http.HttpResponseException e) {
-		logger.error("handleHttpErrors: HttpResponseException status=${e.statusCode}, body=${e.getResponse().getData()}")
+		logMsg("error", "handleHttpErrors: HttpResponseException status=${e.statusCode}, body=${e.getResponse().getData()}")
 		if (e.statusCode == 401) {
 			// OAuth token is expired
 			parent.clearAuthToken()
-			logger.warn("handleHttpErrors: Invalid access token. Need to login again.")
+			logMsg("warn", "handleHttpErrors: Invalid access token. Need to login again.")
 		}
 		throw e
 	} catch (java.net.SocketTimeoutException e) {
-		logger.warn("handleHttpErrors: Connection timed out", e)
+		logMsg("warn", "handleHttpErrors: Connection timed out", e)
 		throw e
 	}
 }
@@ -544,7 +544,7 @@ def handleErrors(status, data) {
 	if (status >= 400) {
         throw new Exception("Error status=${status}, data=${data}")
 	}
-	logger.trace("handleErrors: status=${status}, data=${data}")
+	logMsg("trace", "handleErrors: status=${status}, data=${data}")
 	if (data.code != 0) {
         def errorMessage = parent.getErrorMessage(data)
 		throw new Exception(errorMessage)
@@ -552,10 +552,28 @@ def handleErrors(status, data) {
 	return data.data
 }
 
-@Field final Map logger = [
-	trace: { if (traceLogging) { log.trace(it) } },
-	debug: { if (debugLogging) { log.debug(it) } },
-	info: { log.info(it) },
-	warn: { log.warn(it) },
-	error: { log.error(it) },
-]
+def logMsg(level, message) {
+    switch(level) {
+        case "trace":
+            if (traceLogging) {
+                log.trace(message)
+            }
+            break
+        case "debug":
+            if (debugLogging) {
+                log.debug(message)
+            }
+            break
+        case "info":
+            log.info(message)
+            break
+        case "warn":
+            log.warn(message)
+            break
+        case "error":
+            log.error(message)
+            break
+        default:
+            throw new Exception("Unsupported log level ${level}")
+    }
+}

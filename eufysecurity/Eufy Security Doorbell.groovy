@@ -9,6 +9,7 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
+ *	0.0.7 (2020-03-31) [Amos Yuen] Fix logging method passing bug
  *	0.0.6 (2020-03-26) [Amos Yuen] Fix logging issues in closures
  *	0.0.5 (2020-03-09) [Amos Yuen] Add support for battery
  *		- Fix isStation check
@@ -26,7 +27,7 @@ import groovy.json.JsonOutput
 import groovy.transform.Field
 
 private def textVersion() {
-	return "Version: 0.0.6 - 2020-03-26"
+	return "Version: 0.0.7 - 2020-03-31"
 }
 
 private def textCopyright() {
@@ -596,7 +597,7 @@ def handleErrors(status, data) {
 	return data.data
 }
 
-def logMsg(level, message) {
+@Field final Closure logMsg = { String level, String message ->
     switch(level) {
         case "trace":
             if (traceLogging) {

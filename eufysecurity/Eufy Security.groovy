@@ -11,6 +11,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY 
+ *	0.0.7 (2020-03-31) [Amos Yuen] Fix logging method passing bug
  *	0.0.6 (2020-03-26) [Amos Yuen] Fix logging issues in closures
  *	0.0.5 (2020-03-09) [Amos Yuen] Decode all base64 params for log param changes
  *	0.0.3 (2020-02-16) [Amos Yuen] Another fix for two factor auth.
@@ -24,7 +25,7 @@
 import groovy.transform.Field
 
 private def textVersion() {
-	return "Version: 0.0.6 - 2020-03-26"
+	return "Version: 0.0.7 - 2020-03-31"
 }
 
 private def textCopyright() {
@@ -764,7 +765,7 @@ def decodeBase64Json(String value) {
     return new groovy.json.JsonSlurper().parseText(json)
 }
 
-def logMsg(level, message) {
+@Field final Closure logMsg = { String level, String message ->
     switch(level) {
         case "trace":
             if (traceLogging) {

@@ -9,7 +9,8 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
- *	0.1.2 (2020-03-31) [Amos Yuen] Fix logging method passing bug
+ *	0.1.3 (2021-04-05) [Amos Yuen]  Use 0/1 instead of false/true for floodlightOn param value. Parse  floodlightOn param value.
+ *	0.1.2 (2021-03-31) [Amos Yuen] Fix logging method passing bug
  *	0.1.1 (2021-03-26) [Amos Yuen] Initial Release
  */
 
@@ -17,7 +18,7 @@ import groovy.json.JsonOutput
 import groovy.transform.Field
 
 private def textVersion() {
-	return "Version: 0.1.2 - 2021-03-31"
+	return "Version: 0.1.3 beta - 2021-04-05"
 }
 
 private def textCopyright() {
@@ -66,6 +67,7 @@ metadata {
 		attribute "detectionType", "enum", DETECTION_TYPES
 		attribute "detectionSensitivity", "integer"
 		attribute "floodlightBrightness", "integer"
+		attribute "floodlightOn", "bool"
 		attribute "motionDetection", "bool"
 		attribute "powerMode", "enum", POWER_MODES
 		attribute "pollIntervalSeconds", "number"
@@ -184,12 +186,12 @@ def autoNightVisionOff() {
 
 def floodlightOn() {
 	logMsg("debug", "floodlightOn")
-    setParams([(PARAM_TYPE_FLOODLIGHT_ON): true])
+    setParams([(PARAM_TYPE_FLOODLIGHT_ON): 1])
 }
 
 def floodlightOff() {
 	logMsg("debug", "floodlightOff")
-    setParams([(PARAM_TYPE_FLOODLIGHT_ON): false])
+    setParams([(PARAM_TYPE_FLOODLIGHT_ON): 0])
 }
 
 def motionDetectionOn() {
@@ -391,6 +393,9 @@ def refreshParam(param) {
             return
 		case PARAM_TYPE_FLOODLIGHT_BRIGHTNESS:
             parseNonNegativeIntParam("floodlightBrightness", param)
+            return
+		case PARAM_TYPE_FLOODLIGHT_ON:
+            parseBooleanParam("floodlightOn", param)
             return
         case PARAM_TYPE_MOTION_DETECTION:
             parseBooleanParam("motionDetection", param)

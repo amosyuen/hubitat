@@ -1,10 +1,12 @@
 # Eufy Security README
 
-WARNING: Still in Alpha
+WARNING: Still in Alpha. Standalone devices work, but station based devices are read-only.
 
 # Capabilities
 
 ## Station
+
+WARNING: Setting guard mode changes the value in eufy app, but behavior doesn't actually change
 
 * Get and set guard mode
 * Polls the servers every `pollIntervalSeconds` seconds, where `pollIntervalSeconds` can be  set by the user. Defaults to every 5 minutes.

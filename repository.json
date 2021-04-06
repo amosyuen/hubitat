@@ -16,6 +16,17 @@
 			]
 		},
 		{
+			"name": "Epson Projector",
+			"category": "Integrations",
+			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/epson/packageManifest.json",
+			"description": "Epson Projector Driver",
+			"tags": [
+				"LAN",
+				"Misc. Devices",
+				"Multimedia"
+			]
+		},
+		{
 			"name": "Eufy Security (Alpha)",
 			"category": "Integrations",
 			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/eufysecurity/packageManifest.json",

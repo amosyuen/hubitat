@@ -1,0 +1,20 @@
+{
+	"packageName": "Epson Projector",
+	"author": "Amos Yuen",
+	"version": "1.0.0",
+	"minimumHEVersion": "0.0",
+	"dateReleased": "2021-03-31",
+	"releaseNotes" : "Initial release",
+	"documentationLink": "https://github.com/amosyuen/hubitat/blob/main/epson/README.md",
+	"communityLink": "https://community.hubitat.com/t/release-epson-projector-driver",
+	"drivers": [
+		{
+			"id": "b76507e0-9203-11eb-a8b3-0242ac130003",
+			"name": "Epson Projector",
+			"namespace": "amosyuen",
+			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/epson/Epson%20Projector.groovy",
+			"required": true,
+			"version": "1.0.0"
+		}
+	]
+}

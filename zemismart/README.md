@@ -1,5 +1,9 @@
 # Zemismart Zigbee Blind README
 
+# Prerequisites
+
+You should set the open and close limits first using the manual. This is needed in order to open or close properly.
+
 # Capabilities
 
 * Open

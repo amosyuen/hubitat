@@ -11,6 +11,7 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
+ *	3.0.2 (2021-04-13) [Amos Yuen] - Fix big passing logging closure
  *	3.0.1 (2021-03-26) [Amos Yuen] - Fix logging issues in closures
  *	3.0.0 (2021-01-22) [Amos Yuen]
  *			- Use userIntervals for calculating sleep stage and expose as sleepStage attribute
@@ -68,7 +69,7 @@
 import groovy.transform.Field
 
 private def textVersion() {
-	 def text = "Version: 3.0.1\nDate: 2021-03-26"
+	 def text = "Version: 3.0.2 (2021-04-13)"
 }
 
 private def textCopyright() {
@@ -393,7 +394,7 @@ def poll() {
 def refresh() {
 	logMsg("info", "refresh")
 	
-	def headers = parent.apiRequestHeaders(logMsg)
+    def headers = parent.apiRequestHeaders(logMsg)
 	if (!headers) {
 		logMsg("error", "Error getting header")
 		return
@@ -660,7 +661,8 @@ def handleAsyncResponse(response) {
 	return data
 }
 
-def logMsg(level, message) {
+@Field
+final logMsg = { level, message ->
     switch(level) {
         case "trace":
             if (traceLogging) {

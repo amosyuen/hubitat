@@ -11,6 +11,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY 
+ *	3.0.2 (2021-04-13) [Amos Yuen] - Fix bug passing logging closure
  *	3.0.1 (2021-03-26) [Amos Yuen] - Fix logging issues in closures
  *	3.0.0 (2021-01-22) [Amos Yuen] - Remove heatLevelReached and notifications
  *	2.0.1 (2021-01-05) [Amos Yuen] - Fixed credentials page and notifications for bed events
@@ -32,7 +33,7 @@ import groovy.transform.Field
 @Field final Integer MAX_ACCESS_TOKEN_RENEW_ATTEMPTS = 3
 
 private def textVersion() {
-	return "Version: 3.0.1 - 2020-03-26"
+	return "Version: 3.0.2 (2021-04-13)"
 }
 
 private def textCopyright() {
@@ -319,7 +320,7 @@ private def makeHttpCall(methodFn, path, body = [:], refreshToken = true) {
 
 def apiUrl() { return "https://client-api.8slp.net/v1" }
 
-Map apiRequestHeaders(logMsg, refreshToken = true) {
+Map apiRequestHeaders(Closure logMsg, refreshToken = true) {
 	if (refreshToken) {
    		def expirationTime = parseIsoTime(atomicState.expirationDate).getTime()
    		if (now() > expirationTime) {
@@ -350,7 +351,7 @@ Map apiRequestHeaders(logMsg, refreshToken = true) {
 	]
 }
 
-private def getEightSleepAccessToken(logMsg = logMsg) {  
+private def getEightSleepAccessToken(Closure logMsg = logMsg) {  
 	def body = [ 
 		"email": "${username}",
 		"password" : "${password}"
@@ -389,7 +390,8 @@ def parseIsoTime(time) {
 	return dateFormat.parse(time)
 }
 
-def logMsg(level, message) {
+@Field
+final logMsg = { level, message ->
     switch(level) {
         case "trace":
             if (traceLogging) {

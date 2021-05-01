@@ -17,6 +17,7 @@
  *
  * VERSION HISTORY
  * 2.1.0 (2021-05-01) [Amos Yuen] - Add pushable button capability
+ *		 - Add configurable close and open position thresholds
  * 2.0.0 (2021-03-09) [Amos Yuen] - Change tilt mode open()/close() commands to use set position
  *			to open/close all the way.
  *		- Rename pause() to stop()
@@ -41,8 +42,8 @@ metadata {
 	definition(name: "ZemiSmart Zigbee Blind", namespace: "amosyuen", author: "Amos Yuen",
 			ocfDeviceType: "oic.d.blind", vid: "generic-shade") {
 		capability "Actuator"
-        capability "Configuration"
-        capability "PushableButton"
+		capability "Configuration"
+		capability "PushableButton"
 		capability "Window Shade"
 
 		attribute "speed", "integer"
@@ -58,35 +59,41 @@ metadata {
 			description: "Motor speed (0 to 100). Values below 5 may not work."]]
 
 		fingerprint(endpointId: "01", profileId: "0104",
-                    inClusters: "0000, 0003, 0004, 0005, 0006", outClusters: "0019",
-                    manufacturer: "_TYST11_wmcdj3aq", model: "mcdj3aq",
-                    deviceJoinName: "Zemismart Zigbee Blind")
-        fingerprint(endpointId: "01", profileId: "0104",
-                    inClusters: "0000, 0003, 0004, 0005, 0006", outClusters: "0019",
-                    manufacturer: "_TYST11_cowvfr", model: "owvfni3",
-                    deviceJoinName: "Zemismart Zigbee Blind")
+					inClusters: "0000, 0003, 0004, 0005, 0006", outClusters: "0019",
+					manufacturer: "_TYST11_wmcdj3aq", model: "mcdj3aq",
+					deviceJoinName: "Zemismart Zigbee Blind")
 		fingerprint(endpointId: "01", profileId: "0104",
-                    inClusters: "0000, 0003, 0004, 0005, 0006", outClusters: "0019",
-                    deviceJoinName: "Zemismart Zigbee Blind")
-        // AM43-0.45/40-ES-EZ
+					inClusters: "0000, 0003, 0004, 0005, 0006", outClusters: "0019",
+					manufacturer: "_TYST11_cowvfr", model: "owvfni3",
+					deviceJoinName: "Zemismart Zigbee Blind")
 		fingerprint(endpointId: "01", profileId: "0104",
-                    inClusters: "0000, 0004, 0005, EF00", outClusters: "0019, 000A",
-                    manufacturer: "_TZE200_zah67ekd", model: "TS0601",
-                    deviceJoinName: "Zemismart Zigbee Blind Motor")
-    }
+					inClusters: "0000, 0003, 0004, 0005, 0006", outClusters: "0019",
+					deviceJoinName: "Zemismart Zigbee Blind")
+		// AM43-0.45/40-ES-EZ
+		fingerprint(endpointId: "01", profileId: "0104",
+					inClusters: "0000, 0004, 0005, EF00", outClusters: "0019, 000A",
+					manufacturer: "_TZE200_zah67ekd", model: "TS0601",
+					deviceJoinName: "Zemismart Zigbee Blind Motor")
+	}
 
 	preferences {
 		input("mode", "enum", title: "Mode",
-            description: "<li><b>lift</b> - motor moves until button pressed again</li>"
-                    + "<li><b>tilt</b> - pressing button < 1.5s, movement stops on release"
-                    + "; pressing button > 1.5s, motor moves until button pressed again</li>",
+			description: "<li><b>lift</b> - motor moves until button pressed again</li>"
+					+ "<li><b>tilt</b> - pressing button < 1.5s, movement stops on release"
+					+ "; pressing button > 1.5s, motor moves until button pressed again</li>",
 			options: MODE_MAP, required: true, defaultValue: "1")
 		input("direction", "enum", title: "Direction",
 			options: DIRECTION_MAP, required: true, defaultValue: 0)
-	    input("enableDebugLog", "bool", title: "Enable debug logging", required: true, defaultValue: false)
-	    input("enableTraceLog", "bool", title: "Enable trace logging", required: true, defaultValue: false)
+		input("maxClosedPosition", "number", title: "Max Closed Position",
+			description: "The max position value that window shade state should be set to closed",
+			required: true, defaultValue: 1)
+		input("minOpenPosition", "number", title: "Min Open Position",
+			description: "The min position value that window shade state should be set to open",
+			required: true, defaultValue: 99)
+		input("enableDebugLog", "bool", title: "Enable debug logging", required: true, defaultValue: false)
+		input("enableTraceLog", "bool", title: "Enable trace logging", required: true, defaultValue: false)
 		input("enableUnexpectedMessageLog", "bool", title: "Log unexpected messages", required: true, defaultValue: false)   
-    }
+	}
 }
 
 @Field final String MODE_TILT = "0"
@@ -112,25 +119,44 @@ def updated() {
 def configure() {
 	logDebug("configure")
 	state.version = textVersion()
-    state.copyright = textCopyright()
+	state.copyright = textCopyright()
 
 	sendEvent(name: "numberOfButtons", value: 3)
+	if (device.currentPosition != null
+        && (device.currentWindowShade == "closed"
+            || device.currentWindowShade == "open"
+            || device.currentWindowShade == "partially open")) {
+		updateWindowShadeArrived(device.currentPosition)
+	}
 
-    // Must run async otherwise, one will block the other
+	// Must run async otherwise, one will block the other
 	runIn(1, setMode)
 	runIn(2, setDirection)
+
+	if (maxClosedPosition < 0 || maxClosedPosition > 100) {
+		throw new Exception("Invalid maxClosedPosition \"${maxClosedPosition}\" should be between"
+			+ " 0 and 100 inclusive.")
+	}
+	if (minOpenPosition < 0 || minOpenPosition > 100) {
+		throw new Exception("Invalid minOpenPosition \"${minOpenPosition}\" should be between 0"
+			+ " and 100 inclusive.")
+	}
+	if (maxClosedPosition >= minOpenPosition) {
+		throw new Exception("maxClosedPosition \"${minOpenPosition}\" must be less than"
+			+ " minOpenPosition \"${minOpenPosition}\".")
+	}
 }
 
 def setDirection() {
-    def directionValue = direction as int
-    logDebug("setDirection: directionText=${DIRECTION_MAP[directionValue]}, directionValue=${directionValue}")
+	def directionValue = direction as int
+	logDebug("setDirection: directionText=${DIRECTION_MAP[directionValue]}, directionValue=${directionValue}")
 	sendTuyaCommand(DP_ID_DIRECTION, DP_TYPE_ENUM, directionValue, 2)
 }
 
 def setMode() {
-    def modeValue = mode as int
-    logDebug("setMode: modeText=${MODE_MAP[mode]}, modeValue=${modeValue}")
-    sendTuyaCommand(DP_ID_MODE, DP_TYPE_ENUM, modeValue, 2)
+	def modeValue = mode as int
+	logDebug("setMode: modeText=${MODE_MAP[mode]}, modeValue=${modeValue}")
+	sendTuyaCommand(DP_ID_MODE, DP_TYPE_ENUM, modeValue, 2)
 }
 
 //
@@ -167,9 +193,9 @@ def setMode() {
  */
 def parse(String description) {
 	if (description == null || (!description.startsWith('catchall:') && !description.startsWith('read attr -'))) {
-        logUnexpectedMessage("parse: Unhandled description=${description}")
+		logUnexpectedMessage("parse: Unhandled description=${description}")
 		return
-    }
+	}
 
 	Map descMap = zigbee.parseDescriptionAsMap(description)
 	if (!descMap?.data || descMap.data.size() < 7
@@ -186,23 +212,23 @@ def parse(String description) {
 	switch (dp) {
 		case DP_ID_COMMAND: // 0x01 Command
 			switch (dataValue) {
-                case DP_COMMAND_OPEN: // 0x00
-				    logDebug("parse: opening")
-				    updateWindowShadeOpening()
-                    break
-			    case DP_COMMAND_STOP: // 0x01
-				    logDebug("parse: stopping")
-                    break
-			    case DP_COMMAND_CLOSE: // 0x02
-				    logDebug("parse: closing")
-				    updateWindowShadeClosing()
-                    break
-			    case DP_COMMAND_CONTINUE: // 0x03
-				    logDebug("parse: continuing")
-                    break
-			    default:
-				    logUnexpectedMessage("parse: Unexpected DP_ID_COMMAND dataValue=${dataValue}")
-                    break
+				case DP_COMMAND_OPEN: // 0x00
+					logDebug("parse: opening")
+					updateWindowShadeOpening()
+					break
+				case DP_COMMAND_STOP: // 0x01
+					logDebug("parse: stopping")
+					break
+				case DP_COMMAND_CLOSE: // 0x02
+					logDebug("parse: closing")
+					updateWindowShadeClosing()
+					break
+				case DP_COMMAND_CONTINUE: // 0x03
+					logDebug("parse: continuing")
+					break
+				default:
+					logUnexpectedMessage("parse: Unexpected DP_ID_COMMAND dataValue=${dataValue}")
+					break
 			}
 			break
 		
@@ -210,7 +236,7 @@ def parse(String description) {
 			if (dataValue >= 0 && dataValue <= 100) {
 				logDebug("parse: moving to position ${dataValue}")
 				updateWindowShadeMoving(dataValue)
-                updatePosition(dataValue)
+				updatePosition(dataValue)
 			} else {
 				logUnexpectedMessage("parse: Unexpected DP_ID_TARGET_POSITION dataValue=${dataValue}")
 			}
@@ -220,16 +246,16 @@ def parse(String description) {
 			if (dataValue >= 0 && dataValue <= 100) {
 				logDebug("parse: arrived at position ${dataValue}")
 				updateWindowShadeArrived(dataValue)
-                updatePosition(dataValue)
+				updatePosition(dataValue)
 			} else {
 				logUnexpectedMessage("parse: Unexpected DP_ID_CURRENT_POSITION dataValue=${dataValue}")
 			}
 			break
 		
 		case DP_ID_DIRECTION: // 0x05 Direction
-            def directionText = DIRECTION_MAP[dataValue]
+			def directionText = DIRECTION_MAP[dataValue]
 			if (directionText != null) {
-                logDebug("parse: direction=${directionText}")
+				logDebug("parse: direction=${directionText}")
 				updateDirection(dataValue)
 			} else {
 				logUnexpectedMessage("parse: Unexpected DP_ID_DIRECTION dataValue=${dataValue}")
@@ -249,9 +275,9 @@ def parse(String description) {
 			break
 		
 		case DP_ID_MODE: // 0x65 Mode
-            def modeText = MODE_MAP[dataValue]
+			def modeText = MODE_MAP[dataValue]
 			if (modeText != null) {
-                logDebug("parse: mode=${modeText}")
+				logDebug("parse: mode=${modeText}")
 				updateMode(dataValue)
 			} else {
 				logUnexpectedMessage("parse: Unexpected DP_ID_MODE dataValue=${dataValue}")
@@ -260,7 +286,7 @@ def parse(String description) {
 		
 		case DP_ID_SPEED: // 0x69 Motor speed
 			if (dataValue >= 0 && dataValue <= 100) {
-                logDebug("parse: speed=${dataValue}")
+				logDebug("parse: speed=${dataValue}")
 				updateSpeed(dataValue)
 			} else {
 				logUnexpectedMessage("parse: Unexpected DP_ID_SPEED dataValue=${dataValue}")
@@ -295,7 +321,7 @@ private isWithinOne(position) {
 private updateDirection(directionValue) {
 	def directionText = DIRECTION_MAP[directionValue]
 	logDebug("updateDirection: directionText=${directionText}, directionValue=${directionValue}")
-    if (directionValue != (direction as int)) {
+	if (directionValue != (direction as int)) {
 		setDirection()
 	}
 }
@@ -303,22 +329,22 @@ private updateDirection(directionValue) {
 private updateMode(modeValue) {
 	def modeText = MODE_MAP[modeValue]
 	logDebug("updateMode: modeText=${modeText}, modeValue=${modeValue}")
-    if (modeValue != (mode as int)) {
+	if (modeValue != (mode as int)) {
 		setMode()
 	}
 }
 
 private updatePosition(position) {
 	logDebug("updatePosition: position=${position}")
-    if (isWithinOne(position)) {
-        return
-    }
-    sendEvent(name: "position", value: position)
+	if (isWithinOne(position)) {
+		return
+	}
+	sendEvent(name: "position", value: position)
 }
 
 private updateSpeed(speed) {
 	logDebug("updateSpeed: speed=${speed}")
-    sendEvent(name: "speed", value: speed)
+	sendEvent(name: "speed", value: speed)
 }
 
 private updateWindowShadeMoving(position) {
@@ -334,26 +360,26 @@ private updateWindowShadeMoving(position) {
 
 private updateWindowShadeOpening() {
 	logTrace("updateWindowShadeOpening")
-    sendEvent(name:"windowShade", value: "opening")
+	sendEvent(name:"windowShade", value: "opening")
 }
 
 private updateWindowShadeClosing() {
 	logTrace("updateWindowShadeClosing")
-    sendEvent(name:"windowShade", value: "closing")
+	sendEvent(name:"windowShade", value: "closing")
 }
 
 private updateWindowShadeArrived(position) {
 	logDebug("updateWindowShadeArrived: position=${position}")
 	if (position < 0 || position > 100) {
 		log.warn("updateWindowShadeArrived: Need to setup limits on device")
-    	sendEvent(name: "windowShade", value: "unknown")
-	} else if (position <= 1) { // Sometimes off by one
-    	sendEvent(name: "windowShade", value: "closed")
-    } else if (position >= 99) { // Sometimes off by one
-    	sendEvent(name: "windowShade", value: "open")
-    } else {
+		sendEvent(name: "windowShade", value: "unknown")
+	} else if (position <= maxClosedPosition) {
+		sendEvent(name: "windowShade", value: "closed")
+	} else if (position >= minOpenPosition) {
+		sendEvent(name: "windowShade", value: "open")
+	} else {
 		sendEvent(name: "windowShade", value: "partially open")
-    }
+	}
 }
 
 //
@@ -362,22 +388,22 @@ private updateWindowShadeArrived(position) {
 
 def close() {
 	logDebug("close")
-    sendEvent(name: "position", value: 0)
-    if (mode == MODE_TILT) {
-        setPosition(0)
-    } else {
-	    sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, DP_COMMAND_CLOSE, 2)
-    }
+	sendEvent(name: "position", value: 0)
+	if (mode == MODE_TILT) {
+		setPosition(0)
+	} else {
+		sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, DP_COMMAND_CLOSE, 2)
+	}
 }
 
 def open() {
 	logDebug("open")
-    sendEvent(name: "position", value: 100)
-    if (mode == MODE_TILT) {
-        setPosition(100)
-    } else {
-	    sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, DP_COMMAND_OPEN, 2)
-    }
+	sendEvent(name: "position", value: 100)
+	if (mode == MODE_TILT) {
+		setPosition(100)
+	} else {
+		sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, DP_COMMAND_OPEN, 2)
+	}
 }
 
 def stop() {
@@ -386,23 +412,23 @@ def stop() {
 }
 
 def setPosition(position) {
-    logDebug("setPosition: position=${position}")
-    if (position < 0 || position > 100) {
-        throw new Exception("Invalid position ${position}. Position must be between 0 and 100 inclusive.")
-    }
-    if (isWithinOne(position)) {
-        // Motor is off by one sometimes, so set it to desired value if within one
-        sendEvent(name: "position", value: position)
-    }
-    sendTuyaCommand(DP_ID_TARGET_POSITION, DP_TYPE_VALUE, position.intValue(), 8)
+	logDebug("setPosition: position=${position}")
+	if (position < 0 || position > 100) {
+		throw new Exception("Invalid position ${position}. Position must be between 0 and 100 inclusive.")
+	}
+	if (isWithinOne(position)) {
+		// Motor is off by one sometimes, so set it to desired value if within one
+		sendEvent(name: "position", value: position)
+	}
+	sendTuyaCommand(DP_ID_TARGET_POSITION, DP_TYPE_VALUE, position.intValue(), 8)
 }
 
 def setSpeed(speed) {
-    logDebug("setSpeed: speed=${speed}")
-    if (speed < 0 || speed > 100) {
-        throw new Exception("Invalid speed ${speed}. Speed must be between 0 and 100 inclusive.")
-    }
-    sendTuyaCommand(DP_ID_SPEED, DP_TYPE_ENUM, speed.intValue(), 8)
+	logDebug("setSpeed: speed=${speed}")
+	if (speed < 0 || speed > 100) {
+		throw new Exception("Invalid speed ${speed}. Speed must be between 0 and 100 inclusive.")
+	}
+	sendTuyaCommand(DP_ID_SPEED, DP_TYPE_ENUM, speed.intValue(), 8)
 }
 
 def push(buttonNumber)		{
@@ -431,37 +457,37 @@ private sendTuyaCommand(int dp, int dpType, int fnCmd, int fnCmdLength) {
 	def dpHex = zigbee.convertToHexString(dp, 2)
 	def dpTypeHex = zigbee.convertToHexString(dpType, 2)
 	def fnCmdHex = zigbee.convertToHexString(fnCmd, fnCmdLength)
-    logTrace("sendTuyaCommand: dp=0x${dpHex}, dpType=0x${dpTypeHex}, fnCmd=0x${fnCmdHex}, fnCmdLength=${fnCmdLength}")
-    def message = (randomPacketId().toString()
-                   + dpHex
-                   + dpTypeHex
-                   + zigbee.convertToHexString((fnCmdLength / 2) as int, 4)
-                   + fnCmdHex)
+	logTrace("sendTuyaCommand: dp=0x${dpHex}, dpType=0x${dpTypeHex}, fnCmd=0x${fnCmdHex}, fnCmdLength=${fnCmdLength}")
+	def message = (randomPacketId().toString()
+				   + dpHex
+				   + dpTypeHex
+				   + zigbee.convertToHexString((fnCmdLength / 2) as int, 4)
+				   + fnCmdHex)
 	logTrace("sendTuyaCommand: message=${message}")
 	zigbee.command(CLUSTER_TUYA, SETDATA, message)
 }
 
 private randomPacketId() {
-    zigbee.convertToHexString(new Random().nextInt(65536), 4)
+	zigbee.convertToHexString(new Random().nextInt(65536), 4)
 }
 
 private logDebug(text) {
-    if (!enableDebugLog) {
-        return
-    }
-    log.debug(text)
+	if (!enableDebugLog) {
+		return
+	}
+	log.debug(text)
 }
 
 private logTrace(text) {
-    if (!enableTraceLog) {
-        return
-    }
-    log.trace(text)
+	if (!enableTraceLog) {
+		return
+	}
+	log.trace(text)
 }
 
 private logUnexpectedMessage(text) {
-    if (!enableUnexpectedMessageLog) {
-        return
-    }
-    log.warn(text)
+	if (!enableUnexpectedMessageLog) {
+		return
+	}
+	log.warn(text)
 }

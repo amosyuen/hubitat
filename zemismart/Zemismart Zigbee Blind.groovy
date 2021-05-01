@@ -16,6 +16,7 @@
  * https://templates.blakadder.com/zemismart_YH002.html
  *
  * VERSION HISTORY
+ * 2.1.0 (2021-05-01) [Amos Yuen] - Add pushable button capability
  * 2.0.0 (2021-03-09) [Amos Yuen] - Change tilt mode open()/close() commands to use set position
  *			to open/close all the way.
  *		- Rename pause() to stop()
@@ -29,7 +30,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "2.0.0 - 2021-03-09"
+	return "2.1.0 - 2021-05-01"
 }
 
 private def textCopyright() {
@@ -41,13 +42,18 @@ metadata {
 			ocfDeviceType: "oic.d.blind", vid: "generic-shade") {
 		capability "Actuator"
         capability "Configuration"
+        capability "PushableButton"
 		capability "Window Shade"
 
 		attribute "speed", "integer"
 
+		command "push", [[
+			name: "button number*",
+			type: "NUMBER",
+			description: "1: Open, 2: Close, 3: Stop"]]
 		command "stop"
 		command "setSpeed", [[
-			name: "speed",
+			name: "speed*",
 			type: "NUMBER",
 			description: "Motor speed (0 to 100). Values below 5 may not work."]]
 
@@ -107,6 +113,8 @@ def configure() {
 	logDebug("configure")
 	state.version = textVersion()
     state.copyright = textCopyright()
+
+	sendEvent(name: "numberOfButtons", value: 3)
 
     // Must run async otherwise, one will block the other
 	runIn(1, setMode)
@@ -395,6 +403,24 @@ def setSpeed(speed) {
         throw new Exception("Invalid speed ${speed}. Speed must be between 0 and 100 inclusive.")
     }
     sendTuyaCommand(DP_ID_SPEED, DP_TYPE_ENUM, speed.intValue(), 8)
+}
+
+def push(buttonNumber)		{
+	logTrace("push: buttonNumber=${buttonNumber}")
+	switch(buttonNumber)		{
+		case 1:
+			open()
+			break
+		case 2:
+			close()
+			break
+		case 3:
+			stop()
+			break
+		default:
+			throw new Exception("Unsupported buttonNumber \"${buttonNumber}\"")
+	}
+	sendEvent(name: "pushed", value: buttonNumber, isStateChange: true)
 }
 
 //

@@ -21,7 +21,7 @@
  */
 
 def appVersion() {
-	return "1.0.1"
+	return "1.0.2"
 }
 
 definition(
@@ -48,8 +48,11 @@ def pageMain() {
 		}
 
 		section("Sensors") {
-			input("presenceSensors", "capability.presenceSensor", title: "Presence Sensors", required: false, multiple: true)
+			input("presenceSensors", "capability.presenceSensor", title: "Presence Sensors",
+					multiple: true, required: false)
 			input("motionSensors", "capability.motionSensor", title: "Motion sensors",
+					multiple: true, required: false)
+			input("contactSensors", "capability.contactSensor", title: "Contact sensors",
 					multiple: true, required: false)
 		}
 		
@@ -72,13 +75,9 @@ def pageMain() {
 			input("closeSeconds", "number", title: "Timeout in seconds", required: false,
 					defaultValue: 600, range: "1..*")
 			input("closeAwaySeconds", "number", title: "Timeout in seconds when everyone is away",
-					required: false, defaultValue: 120, range: "1..*")
-			input("engagedSwitches", "capability.switch", title: "Engaged if any switches are on",
+					required: false, defaultValue: 60, range: "1..*")
+			input("occupiedSwitches", "capability.switch", title: "Do not close door if any switches are on",
 					multiple: true, required: false, submitOnChange: true)
-			if (engagedSwitches) {
-				input("closeEngagedSeconds", "number", title: "Timeout in seconds when garage is engaged",
-						required: false, defaultValue: 10800, range: "1..*")
-			}
 		}
 		
 		section("Notifications") {
@@ -130,17 +129,20 @@ def init() {
 	atomicState.lastPresenceValue = lastPresenceValue
 	atomicState.lastPresenceChangeMillis = lastPresenceChangeMillis
 	
-	atomicState.lastMotionMillis = 0
-	
 	if (doorControl.currentDoor != atomicState.lastDoor) {
 		atomicState.lastDoor = doorControl.currentDoor
 		atomicState.lastDoorChangeMillis = millis
 	}
+
+	if (atomicState.lastOccupiedMillis == null) {
+		atomicState.lastOccupiedMillis = 0
+	}
 	
 	subscribe(doorControl, "door", doorControlHandler)	
-	subscribe(presenceSensors, "presence", presenceHandler) 
+	subscribe(presenceSensors, "presence", presenceHandler)
 	subscribe(motionSensors, "motion", motionSensorHandler)
-	subscribe(engagedSwitches, "switch", engagedSwitchHandler)
+	subscribe(contactSensors, "contact", contactSensorHandler)
+	subscribe(occupiedSwitches, "switch", occupiedSwitchHandler)
 	
 	closeDoorAfterTimeout()
 }
@@ -241,14 +243,23 @@ def presenceHandler(evt) {
 def motionSensorHandler(evt) {
 	logDebug("motionSensorHandler ${evt.name}: ${evt.value}")
 	if (evt.value == "active") {
-		atomicState.lastMotionMillis = evt.date.getTime()
+		atomicState.lastOccupiedMillis = evt.date.getTime()
 		closeDoorAfterTimeout()
 	}
 }
 
-def engagedSwitchHandler(evt) {
-	logDebug("engagedSwitchHandler ${evt.name}: ${evt.value}")
+def contactSensorHandler(evt) {
+	logDebug("contactSensorHandler ${evt.name}: ${evt.value}")
+	atomicState.lastOccupiedMillis = evt.date.getTime()
 	closeDoorAfterTimeout()
+}
+
+def occupiedSwitchHandler(evt) {
+	logDebug("occupiedSwitchHandler ${evt.name}: ${evt.value}")
+	if (evt.value == "off") {
+		atomicState.lastOccupiedMillis = evt.date.getTime()
+		closeDoorAfterTimeout()
+	}
 }
 
 //
@@ -269,10 +280,6 @@ def everyoneAway() {
 }
 
 def getTimeoutSeconds() {
-	if (engagedSwitches && engagedSwitches.currentSwitch.contains("open")) {
-		logDebug("getTimeoutSeconds: engaged ${closeEngagedSeconds}")
-		return closeEngagedSeconds
-	}
 	if (everyoneAway()) {
 		logDebug("getTimeoutSeconds: away ${closeAwaySeconds}")
 		return closeAwaySeconds
@@ -281,14 +288,22 @@ def getTimeoutSeconds() {
 	return closeSeconds
 }
 
+def isOccupied() {
+	return occupiedSwitches && occupiedSwitches.currentSwitch.contains("on")
+}
+
 def closeDoorAfterTimeout() {
-	unschedule(closeDoorAfterTimeout)
+	unschedule()
 	if (doorControl.currentDoor == "closed") {
+		return
+	}
+	if (isOccupied()) {
+		logDebug("closeDoorAfterTimeout: occupied")
 		return 
 	}
 	
 	def timeoutSeconds = getTimeoutSeconds()
-	def waitMillis = Math.max(atomicState.lastDoorChangeMillis, atomicState.lastMotionMillis) + timeoutSeconds * 1000 - now()
+	def waitMillis = Math.max(atomicState.lastDoorChangeMillis, atomicState.lastOccupiedMillis) + timeoutSeconds * 1000 - now()
 	logDebug("closeDoorAfterTimeout: wait ${waitMillis} millis")
 	if (waitMillis <= 0) {
 		atomicState.closeDoorTries = 3

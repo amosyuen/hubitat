@@ -84,7 +84,7 @@ def thresholdPage() {
 		if (powerMeter) {
 			section ("<b>Power Monitor Thresholds</b>", hidden: false) {
 				input "startThresholdWatts", "decimal", title: "Start cycle when power raises above (W)", defaultValue: "10", required: false
-				input "ignoreThresholdWatts", "decimal", title: "Ignore extraneous power readings above (W)", defaultValue: "2000", required: false
+				input "doorOpenWatts", "decimal", title: "Door is open when reading above (W)", required: false
 			}
 		}
         if (accelerationSensor && accelerationSensor.any{ it.hasAttribute("activityLevel") }) {
@@ -221,7 +221,7 @@ def updateChild()  {
 
 def accelerationHandler(evt) {
 	def acceleration = accelerationSensor.currentAcceleration
-	if(acceleration == "active") {
+	if (acceleration == "active") {
 		onGreaterThanThreshold()
 	} else {
 		onLessThanThreshold()
@@ -239,13 +239,10 @@ def activityLevelHandler(evt) {
 
 def powerHandler(evt) {
 	def latestPower = powerMeter.currentPower
-	if(latestPower < ignoreThresholdWatts)	
-	{
-		if(latestPower >= startThresholdWatts) {
-			onGreaterThanThreshold()
-		} else {
-			onLessThanThreshold()
-		}
+	if (latestPower >= startThresholdWatts) {
+		onGreaterThanThreshold()
+	} else {
+		onLessThanThreshold()
 	}
 }
 
@@ -360,7 +357,7 @@ def notify(msg) {
 }
 
 def notifyRepeat(data) {
-	if (!isState(STATE_FINISHED())) {
+	if (!isState(STATE_FINISHED()) || (contactSensor && contactSensor.currentContact == "open")) {
 		return
 	}
 	sendNotification(data.msg)

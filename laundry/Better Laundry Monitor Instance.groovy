@@ -352,7 +352,7 @@ def toOpened()
 //
 
 def notify(msg) {
-	notifyRepeat([msg: msg, repeatCount: parent.notificationCount])
+	notifyRepeat([msg: msg, repeatCount: parent.notificationClusterCount])
 }
 
 def notifyRepeat(data) {
@@ -362,6 +362,8 @@ def notifyRepeat(data) {
 	sendNotification(data.msg)
 	if (data.repeatCount > 1) {
 		runIn(parent.notificationRepeatDelay, notifyRepeat, [data: [msg: data.msg, repeatCount: data.repeatCount - 1]])
+	} else if (contactSensor) {
+		runIn(parent.notificationClusterDelay, notify)
 	}
 }
 

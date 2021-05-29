@@ -71,11 +71,13 @@ def notificationPage() {
                     multiple: false, required: false)
             }
             if (pushNotificationDevices || speechNotificationDevices || musicPlayerDevices) {
-			    input("notificationCount", "number", title:"Number of times to notify while contact sensor is closed",
+			    input("notificationClusterCount", "number", title:"Number of times to notify for a cluster announcement",
                     min: 0, defaultValue: 2, required: false, submitOnChange: true)
-                if (notificationCount > 0) {
-    			    input("notificationRepeatDelay", "number", title:"Delay in seconds between the each announcements",
+                if (notificationClusterCount > 0) {
+    			    input("notificationRepeatDelay", "number", title:"Delay in seconds between the each announcement in a cluster",
                         min: 1, defaultValue: 30, required: true)
+					input("notificationClusterDelay", "number", title:"Delay in seconds between repeating of notification cluster if contact has not been opened",
+						min: 1, defaultValue: 3600, required: true)
                 }
             }
 		}

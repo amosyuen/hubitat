@@ -101,7 +101,8 @@ def pageMain() {
 def pageDevices() {
 	dynamicPage(name: "pageDevices", title: "Room Devices Settings", install: false, uninstall: false) {
 		section("Contact Sensors") {
-			input "contactSensors", "capability.contactSensor", title: "Contact sensors", multiple: true, required: false
+			input "contactSensors", "capability.contactSensor", title: "Contact sensors keep room occupied", multiple: true, required: false
+			input "contactSensorsOpen", "capability.contactSensor", title: "Contact sensors make room occupied on open", multiple: true, required: false
 		}
 		section("Motion Sensors") {
 			input "motionSensors", "capability.motionSensor", title: "Motion sensors", multiple: true, required: false
@@ -299,6 +300,7 @@ def init() {
 	subscribe(lightSensors, "illuminance", lightSensorHandler)
 	
 	subscribe(contactSensors, "contact", contactSensorHandler)
+	subscribe(contactSensorsOpen, "contact", contactSensorOpenHandler)
 	subscribe(motionSensors, "motion", motionSensorHandler)
 	if (preventStateChangeIfNoMovementAtExits) {
 		subscribe(exitMotionSensors, "motion.active", exitMotionSensorHandler)
@@ -545,24 +547,7 @@ def lightSensorHandler(evt) {
 def contactSensorHandler(evt) {
 	logDebug("contactSensorHandler: ${evt.getDevice()} ${evt.name}=${evt.value}")
 	if (evt.value == "open") {
-		def exited = preventStateChangeIfNoMovementAtExits && atomicState.nobodyHasExited
-		if (exited) {
-			atomicState.nobodyHasExited = false
-			updateChildNobodyHasExited(false)
-		}
-		switch (atomicState.occupancy) {
-			case "checking":
-			case "vacant":
-				setOccupancyTrigger("occupied", "contact", /* updateLights= */ true)
-				break
-			default:
-				setTrigger("contact")
-				if (exited) {
-					runDelayEvaluateState()
-				}
-				break
-		}
-		updateChildContact(true)
+		contactSensorOpen()
 	} else if (evt.value == "closed") {
 		setTrigger("contact")
 		updateChildContact()
@@ -570,11 +555,43 @@ def contactSensorHandler(evt) {
 	}
 }
 
+// Contact sensors that trigger occupied only on open
+def contactSensorOpenHandler(evt) {
+	logDebug("contactSensorOpenHandler: ${evt.getDevice()} ${evt.name}=${evt.value}")
+	if (evt.value == "open") {
+		contactSensorOpen()
+	} else if (evt.value == "closed") {
+		updateChildContact()
+	}
+}
+
+def contactSensorOpen() {
+	def exited = preventStateChangeIfNoMovementAtExits && atomicState.nobodyHasExited
+	if (exited) {
+		atomicState.nobodyHasExited = false
+		updateChildNobodyHasExited(false)
+	}
+	switch (atomicState.occupancy) {
+		case "checking":
+		case "vacant":
+			setOccupancyTrigger("occupied", "contact", /* updateLights= */ true)
+			break
+		default:
+			setTrigger("contact")
+			if (exited) {
+				runDelayEvaluateState()
+			}
+			break
+	}
+	updateChildContact(true)
+}
+
 def motionSensorHandler(evt) {
 	logDebug("motionSensorHandler ${evt.getDevice()} ${evt.name}=${evt.value}")
 	if (evt.value == "active") {
 		def nobodyHasExited = preventStateChangeIfNoMovementAtExits &&
 				(!contactSensors || !contactSensors.currentContact.contains("open")) &&
+				(!contactSensorsOpen || !contactSensorsOpen.currentContact.contains("open")) &&
 				(!exitMotionSensors || !exitMotionSensors.currentMotion.contains("active")) &&
 				!atomicState.nobodyHasExited
 		if (nobodyHasExited) {
@@ -945,6 +962,7 @@ def checkVacantConditions() {
 		logDebug("checkVacantConditions: contact is open")
 		return false
 	}
+	// contactSensorsOpen should not prevent state transition
 	if (motionSensors && motionSensors.currentMotion.contains("active")) {
 		logDebug("checkVacantConditions: motion is detected")
 		return false

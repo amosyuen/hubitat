@@ -137,7 +137,7 @@ def initialize() {
     logDebug "initialize"
 	unsubscribe()
 	unschedule()
-	updateMyLabel()
+	updateMyLabel(/*init=*/true)
     createChildDeviceIfNotExist()
     updateChild()
 	if (isDisabled) {
@@ -258,8 +258,9 @@ def contactOpenHandler(evt) {
 
 def toInactive() {
 	log.info "Inactive"
+    unschedule(checkIsActive)
+    unschedule(checkIsInactive)
 	setState(STATE_INACTIVE())
-    unschedule()
 }
 
 def onGreaterThanThreshold() {
@@ -296,7 +297,6 @@ def toRunning() {
 	atomicState.cycleStartMillis = atomicState.firstActivityMillis
     atomicState.firstActivityMillis = null
 	setState(STATE_RUNNING())
-    unschedule()
 	if (messageStart != null && messageStart != "") {
 		notify(messageStart)
 	}
@@ -335,7 +335,6 @@ def toFinished() {
     }
     atomicState.cycleFinishMillis = atomicState.lastActivityMillis
 	setState(STATE_FINISHED())
-    unschedule()
     if (messageEnd != null || messageEnd != "") {
 	    notify(messageEnd)
     }
@@ -395,16 +394,15 @@ def getLabelWithoutStatus() {
     return index == -1 ? app.label : app.label.substring(0, index)
 }
 
-def updateMyLabel() {
+def updateMyLabel(init = false) {
     String label = getLabelWithoutStatus() + " (${getStateLabel()})"
     logDebug "updateMyLabel: label=$label"
-	if (app.label != label) {
+	if (app.label != label || init) {
 		app.updateLabel(label)
         
         // Run job to update label once tomorrow arrives
         unschedule(updateMyLabel)
         if (label.matches('.*(today|yesterday).*')) {
-            unschedule()
 	        def tomorrow = (new Date() + 1).clearTime()
             def delaySeconds = Math.ceil((tomorrow.getTime() - now()) / 1000 + 1).toInteger()
             runIn(delaySeconds, updateMyLabel)

@@ -11,6 +11,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY 
+ *	0.0.8 (2020-05-31) [Amos Yuen] Fix bug not showing login errors
  *	0.0.7 (2020-03-31) [Amos Yuen] Fix logging method passing bug
  *	0.0.6 (2020-03-26) [Amos Yuen] Fix logging issues in closures
  *	0.0.5 (2020-03-09) [Amos Yuen] Decode all base64 params for log param changes
@@ -25,7 +26,7 @@
 import groovy.transform.Field
 
 private def textVersion() {
-	return "Version: 0.0.7 - 2020-03-31"
+	return "Version: 0.0.8 - 2020-05-31"
 }
 
 private def textCopyright() {
@@ -271,7 +272,7 @@ private def login(logMsg = logMsg, loginScreen = false) {
 	}
     
     def domainChange = false
-    if (data.data.domain) {
+    if (data?.data?.domain) {
         def newApiUrl = "https://${data.data.domain}/v1"
         if (newApiUrl != state.apiUrl) {
             state.apiUrl = newApiUrl

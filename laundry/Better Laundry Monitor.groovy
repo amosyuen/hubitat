@@ -79,6 +79,10 @@ def notificationPage() {
 					input("notificationClusterDelay", "number", title:"Delay in seconds between repeating of notification cluster if contact has not been opened",
 						min: 1, defaultValue: 3600, required: true)
                 }
+			    input("notificationKeepDoorOpenSeconds", "number", title:"Seconds after cycle finishes to keep notifying to keep door open",
+                    min: 0, defaultValue: 7200, required: false, submitOnChange: true)
+			    input("notificationKeepDoorOpenDelaySeconds", "number", title:"Delay in seconds after door is closed to start sending notifications",
+                    min: 0, defaultValue: 60, required: false, submitOnChange: true)
             }
 		}
 	}

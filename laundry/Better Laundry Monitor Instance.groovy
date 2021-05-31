@@ -105,6 +105,7 @@ def notificationPage() {
             paragraph "Notification messages are sent using parent app notification methods"
 			input "messageStart", "text", title: "Running notification message", required: false
 			input "messageEnd", "text", title: "Finished notification message", required: false
+			input "messageKeepDoorOpen", "text", title: "Keep door open notification message", required: false
 		}
 	}
 }
@@ -158,8 +159,8 @@ def initialize() {
 		}
 	}
 	if (contactSensor) {
-		subscribe(contactSensor, "contact.open", contactOpenHandler)
-		contactOpenHandler()
+		subscribe(contactSensor, "contact", contactHandler)
+		contactHandler([ value: contactSensor.currentContact ])
 	}
     
     if (isState(STATE_RUNNING())) {
@@ -246,9 +247,22 @@ def powerHandler(evt) {
 	}
 }
 
-def contactOpenHandler(evt) {
-	if (isState(STATE_FINISHED())) {
-	    toOpened()
+def contactHandler(evt) {
+	if (evt.value == "open") {
+		if (isState(STATE_FINISHED())) {
+			toOpened()
+		}
+	} else if (messageKeepDoorOpen != null
+			&& notificationKeepDoorOpenSeconds != null
+			&& isWithinNotifyKeepDoorOpenTimeInterval()) {
+		runIn(parent.notificationKeepDoorOpenDelaySeconds, notifyRepeat,
+			[
+				data: [
+					state: STATE_OPENED(),
+					msg: messageKeepDoorOpen,
+					repeatCount: parent.notificationClusterCount
+				]
+			])
 	}
 }
 
@@ -298,7 +312,11 @@ def toRunning() {
     atomicState.firstActivityMillis = null
 	setState(STATE_RUNNING())
 	if (messageStart != null && messageStart != "") {
-		notify(messageStart)
+		notifyRepeat([
+			state: STATE_RUNNING(),
+			msg: messageStart,
+			repeatCount: parent.notificationClusterCount
+		])
 	}
 }
 
@@ -336,35 +354,59 @@ def toFinished() {
     atomicState.cycleFinishMillis = atomicState.lastActivityMillis
 	setState(STATE_FINISHED())
     if (messageEnd != null || messageEnd != "") {
-	    notify(messageEnd)
+		notifyRepeat([
+			state: STATE_FINISHED(),
+			msg: messageEnd,
+			repeatCount: parent.notificationClusterCount
+		])
     }
 }
 
-def toOpened()
-{
+def toOpened() {
 	log.info "Door Opened"
 	setState(STATE_OPENED())
-	unschedule(notify)
+	unschedule(notifyRepeat)
 }
 
 //
 // Notifications 
 //
 
-def notify(msg) {
-	notifyRepeat([msg: msg, repeatCount: parent.notificationClusterCount])
-}
-
 def notifyRepeat(data) {
-	if (!isState(STATE_FINISHED()) || (contactSensor && contactSensor.currentContact == "open")) {
+	if (!isState(data.state)) {
 		return
+	}
+	def repeatCluster = false
+	switch (data.state) {
+		case STATE_OPENED():
+			if (!isWithinNotifyKeepDoorOpenTimeInterval()) {
+				return
+			}
+			// fallthrough
+		case STATE_FINISHED():
+			if (contactSensor != null) {
+				if (contactSensor.currentContact == "open") {
+					return
+				}
+				repeatCluster = true
+			}
+			break
 	}
 	sendNotification(data.msg)
 	if (data.repeatCount > 1) {
-		runIn(parent.notificationRepeatDelay, notifyRepeat, [data: [msg: data.msg, repeatCount: data.repeatCount - 1]])
-	} else if (contactSensor) {
-		runIn(parent.notificationClusterDelay, notify)
+		data.repeatCount = data.repeatCount - 1
+		runIn(parent.notificationRepeatDelay, notifyRepeat, [data: data])
+	} else if (repeatCluster) {
+		data.repeatCount = parent.notificationClusterCount
+		runIn(parent.notificationClusterDelay, notifyRepeat, [data: data])
 	}
+}
+
+def isWithinNotifyKeepDoorOpenTimeInterval() {
+	return (isState(STATE_OPENED())
+		&& atomicState.cycleFinishMillis != null
+		&& now() - atomicState.cycleFinishMillis <= notificationKeepDoorOpenSeconds * 1000)
+
 }
 
 def sendNotification(msg) {

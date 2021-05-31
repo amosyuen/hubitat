@@ -132,14 +132,18 @@ def pageOccupied() {
 			input "occupiedLightSwitches", "capability.switch", title: "Switches to turn on", multiple: true, required: false, submitOnChange: true
             if (occupiedLightSwitches?.any{ s -> s.hasCommand('setLevel') }) {
 				input "occupiedLightLevel", "number", title: "Dimmer level", range: "1..100", defaultValue: 25, required: false
-			    input "explicitlyTurnOnDimmers", "bool", title: "Explicitly turn on dimmers", defaultValue: true, required: false
+                input "explicitlyTurnOnDimmers", "bool", title: "Explicitly turn on dimmers", defaultValue: true, required: false
+                
+			    input "occupiedNightModes", "mode", title: "Night Modes", multiple: true, required: false, submitOnChange: true
+                if (occupiedNightModes) {
+				    input "occupiedNightModeLightLevel", "number", title: "Dimmer level at night (0 == off)", range: "0..100", defaultValue: 2, required: true
+                }
 			}
             if (occupiedLightSwitches?.any{ s -> s.hasCommand('setColorTemperature') }) {
 				input "occupiedLightTemperature", "number", title: "Color temperature", range: "1..30000", defaultValue: 2700, required: false
 			}
 		}
-		section ("Turn On Lights Conditions") {		 
-			input "occupiedModes", "mode", title: "Modes", multiple: true, required: false
+		section ("Turn On Lights Conditions") {
 			if (lightSensors) {
 				input "occupiedLuxThresholdOn", "number", title: "Light Turn On Lux threshold", required: false, range: "1..*", defaultValue: 2000
 				input "occupiedLuxThresholdOff", "number", title: "Light Turn Off Lux threshold", required: false, range: "1..*", defaultValue: 2250
@@ -294,7 +298,7 @@ def init() {
         return
     }
 	
-    if (occupiedModes || vacantModes || nightModes) {
+    if (vacantModes || nightModes) {
 	    subscribe(location, "mode", locationModeHandler)
     }
 	subscribe(lightSensors, "illuminance", lightSensorHandler)
@@ -842,7 +846,8 @@ def updateOccupiedLights() {
 			turnOffNightLight = isAnyOccupiedLightOn()
 		} else if (checkOccupiedTurnOnLightsConditions()) {
 			turnOffNightLight = true
-			occupiedLightsOn(occupiedLightLevel)
+			occupiedLightsOn(occupiedNightModes && occupiedNightModes.contains(location.mode)
+				? occupiedNightModeLightLevel : occupiedLightLevel)
 		} else {
 			runIn(NIGHT_LIGHT_DELAY_SECONDS, occupiedLightsOff)
 		}
@@ -865,8 +870,8 @@ def occupiedLightsOff() {
 }
 
 def checkOccupiedTurnOnLightsConditions() {
-	if (occupiedModes && !occupiedModes.contains(location.mode)) {
-		logDebug("checkOccupiedTurnOnLightsConditions: location mode ${location.mode} is not one of ${occupiedModes}")
+	if (occupiedNightModes && occupiedNightModes.contains(location.mode) && occupiedNightModeLightLevel == 0) {
+		logDebug("checkOccupiedTurnOnLightsConditions: location mode ${location.mode} is night mode and lights should turn off at night")
 		return false
 	}
 	if (!atomicState.inLuxRange) {

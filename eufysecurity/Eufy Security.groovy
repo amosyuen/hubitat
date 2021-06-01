@@ -10,7 +10,8 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *	VERSION HISTORY 
+ *	VERSION HISTORY
+ *	0.0.9 (2020-05-31) [Amos Yuen] Do not retry login if last login failed
  *	0.0.8 (2020-05-31) [Amos Yuen] Fix bug not showing login errors
  *	0.0.7 (2020-03-31) [Amos Yuen] Fix logging method passing bug
  *	0.0.6 (2020-03-26) [Amos Yuen] Fix logging issues in closures
@@ -26,7 +27,7 @@
 import groovy.transform.Field
 
 private def textVersion() {
-	return "Version: 0.0.8 - 2020-05-31"
+	return "Version: 0.0.9 - 2020-05-31"
 }
 
 private def textCopyright() {
@@ -551,7 +552,7 @@ def apiUrl() {
 }
 
 Map apiRequestHeaders(logMsg, refreshToken = true) {
-	if (refreshToken && (!state.authToken || now() > atomicState.authTokenExpirationEpochMillis)) {
+	if (refreshToken && state.loginErrors == null && (!state.authToken || now() > atomicState.authTokenExpirationEpochMillis)) {
 		logMsg("debug", "apiRequestHeaders: Renewing access token")
 		if (!login(logMsg)) {
 			logMsg("error", "apiRequestHeaders: Access token is invalid")

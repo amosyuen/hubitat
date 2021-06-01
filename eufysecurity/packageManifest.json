@@ -1,10 +1,10 @@
 {
 	"packageName": "Eufy Security (Alpha)",
 	"author": "Amos Yuen",
-	"version": "0.0.8",
+	"version": "0.0.9",
 	"minimumHEVersion": "0.0",
 	"dateReleased": "2021-05-31",
-	"releaseNotes" : "Fix bug not showing login errors",
+	"releaseNotes" : "Do not retry login if last login failed",
 	"documentationLink": "https://github.com/amosyuen/hubitat/blob/main/eufysecurity/README.md",
 	"communityLink": "https://community.hubitat.com/t/release-eufy-security-alpha/65487",
 	"apps": [
@@ -17,7 +17,7 @@
 			"required": true,
 			"oauth": false,
 			"primary": true,
-			"version": "0.0.8",
+			"version": "0.0.9",
 			"betaVersion": "0.1.2"
 		}
 	],

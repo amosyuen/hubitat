@@ -141,7 +141,7 @@ def updated() {
 }
 
 def init() {
-	logMsg("debug", "init")
+	logMsg("info", "init")
     unsubscribe()
     
 	createChildDeviceIfNotExist()
@@ -155,6 +155,14 @@ def init() {
 	    subscribe(lights, "switch.off", switchOffHandler)
 	    subscribe(lights, "level", levelHandler)
     }
+}
+
+def uninstalled() {
+	logMsg("info", "uninstalled")
+	unschedule()
+	getChildDevices().each {
+		deleteChildDevice(it.deviceNetworkId)
+	}
 }
 
 //

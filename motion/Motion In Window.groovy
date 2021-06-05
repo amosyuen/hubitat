@@ -79,6 +79,18 @@ def init() {
 	}
 }
 
+def uninstalled() {
+	log.info("uninstalled")
+	unschedule()
+	getChildDevices().each {
+		deleteChildDevice(it.deviceNetworkId)
+	}
+}
+
+/**
+ * Events
+ */
+
 def updateEvents(newEventMillis = null) {
 	def eventsPop = atomicState.eventsPop
 	def eventsPush = atomicState.eventsPush

@@ -335,6 +335,14 @@ def init() {
 	runDelayEvaluateState()
 }
 
+def uninstalled() {
+	logInfo("uninstalled")
+	unschedule()
+	getChildDevices().each {
+		deleteChildDevice(it.deviceNetworkId)
+	}
+}
+
 //
 // Child
 //

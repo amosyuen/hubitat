@@ -170,6 +170,14 @@ def initialize() {
     }
 }
 
+def uninstalled() {
+    logDebug "uninstalled"
+	unschedule()
+	getChildDevices().each {
+		deleteChildDevice(it.deviceNetworkId)
+	}
+}
+
 def setState(newState) {
 	def oldState = atomicState.state
 	if (oldState != newState) {

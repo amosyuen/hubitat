@@ -1,8 +1,8 @@
 /***********************************************************************************************************************
 *
-*  A smartapp to set lights based on HSM status and contact states. Designed for use with Room Manager.
+*  A smartapp to set lights based on HSM status and contact states
 *
-*  Copyright (C) 2021 Amos Yuen
+*  Copyright (C) 2020 amosyuen
 *
 *  License:
 *  This program is free software: you can redistribute it and/or modify it under the terms of the GNU
@@ -147,6 +147,9 @@ def updateLights(failureHexColor) {
 }
 
 def updateChildLights(child) {
+    if (!child.lights) {
+        return
+    }
     def colorMap = getColorMap(getChildColor(child))
     logDebug("updateChildLights: set child ${child.label}(${child.id}) lights to ${colorMap}")
     child.lights.setColor(colorMap)
@@ -154,20 +157,25 @@ def updateChildLights(child) {
 
 def getChildColor(child) {
 	if (child.contactSensors && child.contactSensors.currentContact.contains("open")) {
+        logDebug("getChildColor: ${child.label}(${child.id}) is contact open color ${contactOpenHexColor}")
         return contactOpenHexColor
     }
 	def failureHexColor = getFailureHexColor()
 	if (failureHexColor != null) {
+        logDebug("getChildColor: ${child.label}(${child.id}) is a failure color ${failureHexColor}")
 		return failureHexColor
 	}
-	def armingHexColor = getArmingHexColor()
+	def armingHexColor = getArmingHexColor(child)
 	if (armingHexColor != null) {
+        logDebug("getChildColor: ${child.label}(${child.id}) is arming color ${armingHexColor}")
 		return armingHexColor
 	}
 	def occupancyHexColor = getOccupancyHexColor(child)
 	if (occupancyHexColor != null) {
+        logDebug("getChildColor: ${child.label}(${child.id}) is occupancy color ${occupancyHexColor}")
 		return occupancyHexColor
 	}
+    logDebug("getChildColor: ${child.label}(${child.id}) is neutral ${neutralHexColor}")
     return neutralHexColor
 }
 
@@ -181,7 +189,10 @@ def getFailureHexColor() {
     return null
 }
 
-def getArmingHexColor() {
+def getArmingHexColor(child) {
+    if (!child.showArmingState) {
+        return null
+    }
     switch (state.status) {
         case "armed":
             return armedHexColor
@@ -193,7 +204,7 @@ def getArmingHexColor() {
 
 def getOccupancyHexColor(child) {
 	if (child.room) {
-		switch (child.room.occupancy) {
+		switch (child.room.currentOccupancy) {
 			case "engaged":
 				return engagedHexColor
 		}

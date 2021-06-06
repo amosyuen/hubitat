@@ -16,6 +16,8 @@
  * https://templates.blakadder.com/zemismart_YH002.html
  *
  * VERSION HISTORY
+ * 2.2.0 (2021-06-06) [Amos Yuen] - Add commands for stepping
+*        - Fix push command not sending zigbee commands
  * 2.1.0 (2021-05-01) [Amos Yuen] - Add pushable button capability
  *		 - Add configurable close and open position thresholds
  * 2.0.0 (2021-03-09) [Amos Yuen] - Change tilt mode open()/close() commands to use set position
@@ -31,7 +33,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "2.1.0 - 2021-05-01"
+	return "2.2.0 - 2021-06-06"
 }
 
 private def textCopyright() {
@@ -51,7 +53,15 @@ metadata {
 		command "push", [[
 			name: "button number*",
 			type: "NUMBER",
-			description: "1: Open, 2: Close, 3: Stop"]]
+			description: "1: Open, 2: Close, 3: Stop, 4: Step Open, 5: Step Close"]]
+		command "stepClose", [[
+			name: "step",
+			type: "NUMBER",
+			description: "Amount to change position towards close. Defaults to defaultStepAmount if not set."]]
+		command "stepOpen", [[
+			name: "step",
+			type: "NUMBER",
+			description: "Amount to change position towards open. Defaults to defaultStepAmount if not set."]]
 		command "stop"
 		command "setSpeed", [[
 			name: "speed*",
@@ -90,6 +100,9 @@ metadata {
 		input("minOpenPosition", "number", title: "Min Open Position",
 			description: "The min position value that window shade state should be set to open",
 			required: true, defaultValue: 99)
+		input("defaultStepAmount", "number", title: "Default Step Amount",
+			description: "The default step amount",
+			required: true, defaultValue: 5)
 		input("enableDebugLog", "bool", title: "Enable debug logging", required: true, defaultValue: false)
 		input("enableTraceLog", "bool", title: "Enable trace logging", required: true, defaultValue: false)
 		input("enableUnexpectedMessageLog", "bool", title: "Log unexpected messages", required: true, defaultValue: false)   
@@ -121,7 +134,7 @@ def configure() {
 	state.version = textVersion()
 	state.copyright = textCopyright()
 
-	sendEvent(name: "numberOfButtons", value: 3)
+	sendEvent(name: "numberOfButtons", value: 5)
 	if (device.currentPosition != null
         && (device.currentWindowShade == "closed"
             || device.currentWindowShade == "open"
@@ -423,6 +436,22 @@ def setPosition(position) {
 	sendTuyaCommand(DP_ID_TARGET_POSITION, DP_TYPE_VALUE, position.intValue(), 8)
 }
 
+def stepClose(step) {
+	if (!step) {
+		step = defaultStepAmount
+	}
+	stepOpen(-step)
+}
+
+def stepOpen(step) {
+	logDebug("stepOpen: step=${step}")
+	if (!step) {
+		step = defaultStepAmount
+	}
+	setPosition(Math.max( 0, Math.min(100, (device.currentPosition + step) as int)))
+}
+
+
 def setSpeed(speed) {
 	logDebug("setSpeed: speed=${speed}")
 	if (speed < 0 || speed > 100) {
@@ -433,7 +462,8 @@ def setSpeed(speed) {
 
 def push(buttonNumber)		{
 	logTrace("push: buttonNumber=${buttonNumber}")
-	switch(buttonNumber)		{
+	sendEvent(name: "pushed", value: buttonNumber, isStateChange: true)
+	switch(buttonNumber) {
 		case 1:
 			open()
 			break
@@ -443,10 +473,15 @@ def push(buttonNumber)		{
 		case 3:
 			stop()
 			break
+		case 4:
+			stepOpen()
+			break
+		case 5:
+			stepClose()
+			break
 		default:
 			throw new Exception("Unsupported buttonNumber \"${buttonNumber}\"")
 	}
-	sendEvent(name: "pushed", value: buttonNumber, isStateChange: true)
 }
 
 //

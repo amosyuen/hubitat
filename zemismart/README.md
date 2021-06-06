@@ -20,12 +20,16 @@ Links to purchase the Zemismart Zigbee Blind motor.
 
 * Open
 * Close
-* Pause
+* Stop
+* Step Open
+* Step Close
+* Push Button (1 = Open, 2 = Close, 3 = Stop, 4 = Step Open, 5 = Step Close)
 * Get and set direction
 * Get and set position [0-100]
 * Get and set mode (if supported by device)
 * Get and set speed [0-100] (if supported by device)
 * Configurable open and closed position thresholds
+* Configurable default step amount
 
 ## Tested Devices
 

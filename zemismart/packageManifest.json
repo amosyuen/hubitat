@@ -1,10 +1,10 @@
 {
 	"packageName": "Zemismart Zigbee Blind",
 	"author": "Amos Yuen",
-	"version": "2.1.0",
+	"version": "2.2.0",
 	"minimumHEVersion": "0.0",
 	"dateReleased": "2021-03-09",
-	"releaseNotes" : "* Support PushableButton capability\n* Add configurable close and open position thresholds",
+	"releaseNotes" : "* Add commands for stepping.\n * Fix push command not sending zigbee commands\n\nMust click save preferences for new step commands to work.",
 	"documentationLink": "https://github.com/amosyuen/hubitat/blob/main/zemismart/README.md",
 	"communityLink": "https://community.hubitat.com/t/release-zemismart-zigbee-blind-driver/67525",
 	"drivers": [
@@ -14,7 +14,7 @@
 			"namespace": "amosyuen",
 			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/zemismart/Zemismart%20Zigbee%20Blind.groovy",
 			"required": true,
-			"version": "2.1.0"
+			"version": "2.2.0"
 		}
 	]
 }

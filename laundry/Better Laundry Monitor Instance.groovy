@@ -217,7 +217,7 @@ def updateChild()  {
     return
   }
   
-  def switchValue = isState(STATE_FINISHED()) || isState(STATE_OPENED()) ? "on" : "off"
+  def switchValue = isState(STATE_RUNNING()) ? "on" : "off"
   child.sendEvent(name: "switch", value: switchValue, descriptionText: "switch is ${switchValue}", displayed: true)
   def state = isDisabled ? "disabled" : atomicState.state
   child.sendEvent(name: "state", value: state, descriptionText: "state is ${state}", displayed: true)

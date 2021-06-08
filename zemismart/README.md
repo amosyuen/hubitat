@@ -28,6 +28,7 @@ Links to purchase the Zemismart Zigbee Blind motor.
 * Get and set position [0-100]
 * Get and set mode (if supported by device)
 * Get and set speed [0-100] (if supported by device)
+* Presence indicating if the device has responded to commands
 * Configurable open and closed position thresholds
 * Configurable default step amount
 

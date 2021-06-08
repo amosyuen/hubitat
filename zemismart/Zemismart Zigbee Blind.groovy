@@ -16,6 +16,7 @@
  * https://templates.blakadder.com/zemismart_YH002.html
  *
  * VERSION HISTORY
+ * 2.3.0 (2021-06-09) [Amos Yuen] - Add presence attribute to indicate whether device is responsive
  * 2.2.0 (2021-06-06) [Amos Yuen] - Add commands for stepping
 *        - Fix push command not sending zigbee commands
  * 2.1.0 (2021-05-01) [Amos Yuen] - Add pushable button capability
@@ -33,7 +34,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "2.2.0 - 2021-06-06"
+	return "2.3.0 - 2021-06-09"
 }
 
 private def textCopyright() {
@@ -45,6 +46,7 @@ metadata {
 			ocfDeviceType: "oic.d.blind", vid: "generic-shade") {
 		capability "Actuator"
 		capability "Configuration"
+		capability "Presence Sensor"
 		capability "PushableButton"
 		capability "Window Shade"
 
@@ -116,6 +118,8 @@ metadata {
 @Field final Map DIRECTION_MAP = [0: "forward", 1: "reverse"]
 @Field final Map DIRECTION_MAP_REVERSE = DIRECTION_MAP.collectEntries { [(it.value): it.key] }
 @Field final List DIRECTIONS = DIRECTION_MAP.collect { it.value }
+@Field final int CHECK_FOR_RESPONSE_INTERVAL_SECONDS = 60
+@Field final int HEARTBEAT_INTERVAL_SECONDS = 4000 // a little more than 1 hour
 
 //
 // Life Cycle
@@ -133,6 +137,10 @@ def configure() {
 	logDebug("configure")
 	state.version = textVersion()
 	state.copyright = textCopyright()
+
+	if (atomicState.lastHeardMillis == null) {
+		atomicState.lastHeardMillis = 0
+	}
 
 	sendEvent(name: "numberOfButtons", value: 5)
 	if (device.currentPosition != null
@@ -205,6 +213,8 @@ def setMode() {
  * [variable bytes] (fnCmd)
  */
 def parse(String description) {
+	updatePresence(true)
+
 	if (description == null || (!description.startsWith('catchall:') && !description.startsWith('read attr -'))) {
 		logUnexpectedMessage("parse: Unhandled description=${description}")
 		return
@@ -355,6 +365,16 @@ private updatePosition(position) {
 	sendEvent(name: "position", value: position)
 }
 
+private updatePresence(present) {
+	logDebug("updatePresence: present=${present}")
+	if (present) {
+		atomicState.lastHeardMillis = now()
+		checkHeartbeat()
+	}
+	atomicState.waitingForResponseSinceMillis = null
+	sendEvent(name: "presence", value: present ? "present" : "not present")
+}
+
 private updateSpeed(speed) {
 	logDebug("updateSpeed: speed=${speed}")
 	sendEvent(name: "speed", value: speed)
@@ -489,6 +509,9 @@ def push(buttonNumber)		{
 //
 
 private sendTuyaCommand(int dp, int dpType, int fnCmd, int fnCmdLength) {
+	atomicState.waitingForResponseSinceMillis = now()
+	checkForResponse()
+    
 	def dpHex = zigbee.convertToHexString(dp, 2)
 	def dpTypeHex = zigbee.convertToHexString(dpType, 2)
 	def fnCmdHex = zigbee.convertToHexString(fnCmd, fnCmdLength)
@@ -503,7 +526,35 @@ private sendTuyaCommand(int dp, int dpType, int fnCmd, int fnCmdLength) {
 }
 
 private randomPacketId() {
-	zigbee.convertToHexString(new Random().nextInt(65536), 4)
+	return zigbee.convertToHexString(new Random().nextInt(65536), 4)
+}
+
+// Must be non-private to use runInMillis
+def checkForResponse() {
+	logTrace("checkForResponse: waitingForResponseSinceMillis=${atomicState.waitingForResponseSinceMillis}")
+	if (atomicState.waitingForResponseSinceMillis == null) {
+		return
+	}
+	def waitMillis = (CHECK_FOR_RESPONSE_INTERVAL_SECONDS * 1000
+			- (now() - atomicState.waitingForResponseSinceMillis))
+	logTrace("checkForResponse: waitMillis=${waitMillis}")
+	if (waitMillis <= 0) {
+		updatePresence(false)
+	} else {
+		runInMillis(waitMillis, checkForResponse)
+	}
+}
+
+// Must be non-private to use runInMillis
+def checkHeartbeat() {
+	def waitMillis = (HEARTBEAT_INTERVAL_SECONDS * 1000
+			- (now() - atomicState.lastHeardMillis))
+	logTrace("checkHeartbeat: waitMillis=${waitMillis}")
+	if (waitMillis <= 0) {
+		updatePresence(false)
+	} else {
+		runInMillis(waitMillis, checkHeartbeat)
+	}
 }
 
 private logDebug(text) {

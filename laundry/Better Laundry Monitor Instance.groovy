@@ -330,7 +330,7 @@ def toRunning() {
 
 def onLessThanThreshold(evt) {
     atomicState.firstActivityMillis = null
-    if (isState(STATE_INACTIVE()) || atomicState.lastActivityMillis != null) {
+    if (!isState(STATE_RUNNING()) || atomicState.lastActivityMillis != null) {
         logDebug "onLessThanThreshold: skip state=${atomicState.state} lastActivityMillis=${atomicState.lastActivityMillis}"
         return
     }

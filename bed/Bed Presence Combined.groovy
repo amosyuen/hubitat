@@ -37,11 +37,23 @@ def mainPage() {
 		}
 	  	section ("<b>Options</b>") {
 			input "presenceSensor", "capability.presenceSensor", title: "Presence Sensor", required: true
+
 			input "contactSensor", "capability.contactSensor", title: "Contact Sensor (closed = in bed)",
 				required: true
-			input "contactOpenDebounceSeconds", "number",
-				title: "How many seconds to debounce contact opening",
-				min: 0, defaultValue: 60, required: true
+			input "contactClosedDelaySeconds", "number",
+				title: "How many seconds to delay contact closing",
+				min: 0, defaultValue: 5, required: true
+			input "contactOpenDelaySeconds", "number",
+				title: "How many seconds to delay contact opening",
+				min: 0, defaultValue: 3600, required: true
+
+			input "motionSensors", "capability.motionSensor", title: "Motions sensors (detect out of bed)",
+				required: false, multiple: true, submitOnChange: true
+			if (motionSensors) {
+				input "motionAfterContactOpenWindowSeconds", "number",
+					title: "How many seconds after contact opens to look for motion to mark the bed as not present",
+					min: 0, defaultValue: 300, required: true
+			}
 		}
 		section("<b>Debug</b>") {
 			input "debugLog", "bool", title: "Log debug statements",
@@ -69,19 +81,20 @@ def init() {
 	log.info("init")
 	unschedule()
 	
-	if (atomicState.lastContactOpenMillis == null) {
-		atomicState.lastContactOpenMillis = 0
+	if (atomicState.lastContactChangeMillis == null) {
+		atomicState.lastContactChangeMillis = 0
 	}
 
 	createChildIfNotExist()
 	subscribe(contactSensor, "contact", contactSensorHandler)
 	subscribe(presenceSensor, "presence", presenceSensorHandler)
+	subscribe(motionSensors, "motion.active", motionSensorActiveHandler)
 
-	def present = (
-		contactSensor.currentContact == "closed"
-		|| getWaitContactSensorOpenRemainingMillis() > 0)
+	def waitMillis = getWaitContactSensorRemainingMillis()
+	def present = ((contactSensor.currentContact == "closed" && waitMillis <= 0)
+		|| (contactSensor.currentContact == "open" && waitMillis > 0))
 	updateChildPresence(present)
-	contactSensorOpen()
+	checkContactSensorDelayed()
 }
 
 def uninstalled() {
@@ -98,36 +111,44 @@ def uninstalled() {
 
 def contactSensorHandler(evt) {
 	logDebug("contactSensorHandler: deviceId=${evt.getDevice()} ${evt.name}=${evt.value}")
-	if (evt.value == "closed") {
-		updateChildPresence(true)
-		unschedule(contactSensorOpen)
-	} else {
-		atomicState.lastContactOpenMillis = now()
-		contactSensorOpen()
-	}
+	atomicState.lastContactChangeMillis = now()
+	checkContactSensorDelayed()
 }
 
-def getWaitContactSensorOpenRemainingMillis() {
-	return contactOpenDebounceSeconds * 1000 - (now() - atomicState.lastContactOpenMillis)
+def getWaitContactSensorRemainingMillis() {
+	def waitSeconds = (contactSensor.currentContact == "closed"
+			? contactClosedDelaySeconds : contactOpenDelaySeconds)
+	return waitSeconds * 1000 - (now() - atomicState.lastContactChangeMillis)
 }
 
-def contactSensorOpen() {
-	logDebug("contactSensorOpen")
-	if (contactSensor.currentContact == "closed") {
-		return
-	}
-	def remainingMillis = getWaitContactSensorOpenRemainingMillis()
-	logDebug("contactSensorOpen: remainingMillis=${remainingMillis}")
+def checkContactSensorDelayed() {
+	logDebug("checkContactSensorDelayed: contact=${contactSensor.currentContact}")
+	def remainingMillis = getWaitContactSensorRemainingMillis()
+	logDebug("checkContactSensorDelayed: remainingMillis=${remainingMillis}")
 	if (remainingMillis <= 0) {
-		updateChildPresence(false)
+		updateChildPresence(contactSensor.currentContact == "closed")
 	} else {
-		runInMillis(remainingMillis, contactSensorOpen)
+		runInMillis(remainingMillis, checkContactSensorDelayed)
 	}
 }
 
 def presenceSensorHandler(evt) {
 	logDebug("presenceSensorHandler: deviceId=${evt.getDevice()} ${evt.name}=${evt.value}")
 	if (evt.value == "not present") {
+		updateChildPresence(false)
+	}
+}
+
+def isInDetectLeftBedWindow() {
+	if (contactSensor.currentContact == "closed") {
+		return false
+	}
+	return now() - atomicState.lastContactChangeMillis <= motionAfterContactOpenWindowSeconds * 1000
+}
+
+def motionSensorActiveHandler(evt) {
+	logDebug("motionSensorActiveHandler: deviceId=${evt.getDevice()} ${evt.name}=${evt.value}")
+	if (isInDetectLeftBedWindow()) {
 		updateChildPresence(false)
 	}
 }

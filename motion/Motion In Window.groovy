@@ -40,7 +40,7 @@ def mainPage() {
 			label title: "Assign a name"
 		}
 	  	section ("<b>Options</b>") {
-			input "motionSensors", "capability.motionSensor", title: "Motion Sensors", repeated: true, required: true
+			input "motionSensors", "capability.motionSensor", title: "Motion Sensors", multiple: true, required: true
 			input "numberOfMotionEvents", "number", title: "Number of motion events within window required to trigger active", min: 1, defaultValue: 2, required: true
 			input "windowSeconds", "number", title: "Window in seconds", min: 1, required: true
 		}

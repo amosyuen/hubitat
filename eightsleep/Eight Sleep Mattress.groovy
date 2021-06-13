@@ -11,6 +11,7 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
+ *	4.0.0 (2021-06-13) [Amos Yuen] - Change only supported thermostat mode to auto instead of heat/cool. Support bed on with targetHeatingLevel 0.
  *	3.0.2 (2021-04-13) [Amos Yuen] - Fix big passing logging closure
  *	3.0.1 (2021-03-26) [Amos Yuen] - Fix logging issues in closures
  *	3.0.0 (2021-01-22) [Amos Yuen]
@@ -69,7 +70,7 @@
 import groovy.transform.Field
 
 private def textVersion() {
-	 def text = "Version: 3.0.2 (2021-04-13)"
+	 def text = "Version: 4.0.0 (2021-06-13)"
 }
 
 private def textCopyright() {
@@ -155,9 +156,9 @@ def init() {
 	createChildDevicesIfNotExist()
 	
 	if (device.currentTargetHeatLevel == null) {
-		sendEvent(name: "targetHeatLevel", value: 10, displayed: false)
+		sendEvent(name: "targetHeatLevel", value: 0, displayed: false)
 	}
-	sendEvent(name: "supportedThermostatModes", value: ["cool", "heat", "off"])
+	sendEvent(name: "supportedThermostatModes", value: ["auto", "off"])
 	sendEvent(name: "supportedThermostatFanModes", value: [])
 	sendEvent(name: "thermostatFanMode", value: "auto")
 	sendEvent(name: "version", value: textVersion(), displayed: false)
@@ -242,11 +243,6 @@ def componentOn(componentDevice) {
 	if (!componentDevice) { return }
 	logMsg("debug", "componentOn: componentDevice=${componentDevice}")
 	on()
-	if (componentDevice.deviceNetworkId == getChildHeatId()) {
-		setTargetHeatLevel(Math.max(10, device.currentTargetHeatLevel as Integer))
-	} else if (componentDevice.deviceNetworkId == getChildCoolId()) {
-		setTargetHeatLevel(Math.min(-10, device.currentTargetHeatLevel as Integer))
-	}
 }
 
 def componentOff(componentDevice) {
@@ -266,32 +262,26 @@ def componentRefresh(componentDevice) {
 
 def on() {
 	logMsg("debug", "on")
-	setTargetHeatLevel(device.currentTargetHeatLevel == 0 ? 10 : device.currentTargetHeatLevel as Integer)
+	setTargetHeatLevel(device.currentTargetHeatLevel as Integer)
 }
 
 def off() {
 	logMsg("debug", "off")
-	setTargetHeatLevel(0)
-}
-
-def cool() {
-	logMsg("debug", "cool")
-	if (!state.supportsCooling) {
-		logMsg("warn", "cool() is unsupported for this device")
-		return
-	}
-	setTargetHeatLevel(Math.min(-10, device.currentTargetHeatLevel as Integer))
-}
-
-def heat() {
-	logMsg("debug", "heat")
-	setTargetHeatLevel(Math.max(10, device.currentTargetHeatLevel as Integer))
+	setTargetHeatLevel(null)
 }
 
 def auto() {
-	logMsg("warn", "auto() is unsupported")
+	logMsg("debug", "auto")
+	on()
 }
 
+def cool() {
+	logMsg("warn", "cool() is unsupported")
+}
+
+def heat() {
+	logMsg("warn", "heat() is unsupported")
+}
 
 def emergencyHeat() {
 	logMsg("warn", "emergencyHeat() is unsupported")
@@ -300,11 +290,8 @@ def emergencyHeat() {
 def setThermostatMode(mode) {
 	logMsg("debug", "setThermostatMode: mode=${mode}")
 	switch (mode) {
-		case "heat":
-			heat()
-			break
-		case "cool":
-			cool()
+		case "auto":
+			auto()
 			break
 		case "off":
 			off()
@@ -358,13 +345,15 @@ def getSchedule() {
 // Custom Commands
 def setTargetHeatLevel(level) {
 	logMsg("debug", "setTargetHeatLevel: level=${level}")
-	level = Math.min(100, level as Integer)
-	level = Math.max(state.supportsCooling ? -100 : 0, level)
+	if (level != null) {
+		level = Math.min(100, level as Integer)
+		level = Math.max(state.supportsCooling ? -100 : 0, level)
+	}
 	def body = [
 		"${state.bedSide}TargetHeatingLevel": level,
 		// Value doesn't seem to matter as long as it is greater than 0
 		// Server will change the heating duration
-		"${state.bedSide}HeatingDuration": level == 0 ? 0 : 3600
+		"${state.bedSide}HeatingDuration": level == null ? 0 : 3600
 	]
 	def result = apiPUT("/devices/${state.bedId}", body).device
 	updateFromBedResult(result)
@@ -442,14 +431,15 @@ def updateFromBedResult(result) {
 	sendEvent(name: "switch", value: nowHeating ? "on" : "off", displayed: true)
 	def targetHeatLevel = result["${state.bedSide}TargetHeatingLevel"] as Integer
 	def heatLevel = result["${state.bedSide}HeatingLevel"]
-	if (targetHeatLevel != 0) {
+	if (nowHeating) {
 		// targetHeatLevel is always 0 if not on. So don't set it if 0 so that we keep the old
 		// value, which we can use when we turn it back on
 		sendEvent(name: "targetHeatLevel", value: targetHeatLevel, displayed: true)
+		sendEvent(name: "thermostatSetpoint", value: targetHeatLevel, displayed: true)
 		sendEvent(name: "heatingSetpoint", value: targetHeatLevel, displayed: false)
 		sendEvent(name: "coolingSetpoint", value: targetHeatLevel, displayed: false)
 	}
-	sendEvent(name: "thermostatMode", value: nowHeating ? (targetHeatLevel > 0 ? "heat" : "cool") : "off", displayed: true)
+	sendEvent(name: "thermostatMode", value: nowHeating ? "auto" : "off", displayed: true)
 	sendEvent(name: "thermostatOperatingState", value: nowHeating ? (targetHeatLevel > 0 ? "heating" : "cooling") : "idle", displayed: false)
 	sendEvent(name: "heatLevel", value: heatLevel, displayed: true)
 	sendEvent(name: "temperature", value: heatLevel, displayed: false)

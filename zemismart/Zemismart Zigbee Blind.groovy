@@ -14,13 +14,17 @@
  * https://github.com/iquix/Smartthings/blob/master/devicetypes/iquix/tuya-window-shade.src/tuya-window-shade.groovy
  * https://raw.githubusercontent.com/shin4299/XiaomiSJ/master/devicetypes/shinjjang/zemismart-zigbee-blind.src/zemismart-zigbee-blind.groovy
  * https://templates.blakadder.com/zemismart_YH002.html
+ * https://github.com/zigpy/zha-device-handlers/blob/f3302257fbb57f9f9f99ecbdffdd2e7862cc1fd7/zhaquirks/tuya/__init__.py#L846
  *
  * VERSION HISTORY
+ * 3.0.0 (2021-06-18) [Amos Yuen] - Support new window shade command startPositionChange()
+ *		- Rename stop() to stopPositionChange()
+ *		- Handle ack and set time zigbee messages
  * 2.3.0 (2021-06-09) [Amos Yuen] - Add presence attribute to indicate whether device is responsive
  * 2.2.0 (2021-06-06) [Amos Yuen] - Add commands for stepping
-*        - Fix push command not sending zigbee commands
+*       - Fix push command not sending zigbee commands
  * 2.1.0 (2021-05-01) [Amos Yuen] - Add pushable button capability
- *		 - Add configurable close and open position thresholds
+ *		- Add configurable close and open position thresholds
  * 2.0.0 (2021-03-09) [Amos Yuen] - Change tilt mode open()/close() commands to use set position
  *			to open/close all the way.
  *		- Rename pause() to stop()
@@ -34,7 +38,7 @@ import hubitat.zigbee.zcl.DataType
 import hubitat.helper.HexUtils
 
 private def textVersion() {
-	return "2.3.0 - 2021-06-09"
+	return "3.0.0 - 2021-06-18"
 }
 
 private def textCopyright() {
@@ -64,7 +68,6 @@ metadata {
 			name: "step",
 			type: "NUMBER",
 			description: "Amount to change position towards open. Defaults to defaultStepAmount if not set."]]
-		command "stop"
 		command "setSpeed", [[
 			name: "speed*",
 			type: "NUMBER",
@@ -185,7 +188,11 @@ def setMode() {
 //
 
 @Field final int CLUSTER_TUYA = 0xEF00
-@Field final int SETDATA = 0x00
+
+@Field final int ZIGBEE_COMMAND_SET_DATA = 0x00
+@Field final int ZIGBEE_COMMAND_SET_DATA_RESPONSE = 0x02
+@Field final int ZIGBEE_COMMAND_ACK = 0x0B
+@Field final int ZIGBEE_COMMAND_SET_TIME = 0x24
 
 @Field final int DP_ID_COMMAND = 0x01
 @Field final int DP_ID_TARGET_POSITION = 0x02
@@ -204,6 +211,45 @@ def setMode() {
 @Field final int DP_COMMAND_CLOSE = 0x02
 @Field final int DP_COMMAND_CONTINUE = 0x03
 
+def parse(String description) {
+	if (description == null || (!description.startsWith('catchall:') && !description.startsWith('read attr -'))) {
+		logUnexpectedMessage("parse: Unhandled description=${description}")
+		return
+	}
+
+	updatePresence(true)
+	Map descMap = zigbee.parseDescriptionAsMap(description)
+	if (descMap.clusterInt != CLUSTER_TUYA) {
+		logUnexpectedMessage("parse: Not a Tuya Message descMap=${descMap}")
+		return
+	}
+	def command = zigbee.convertHexToInt(descMap.command)
+	switch (command) {
+		case ZIGBEE_COMMAND_SET_DATA_RESPONSE: // 0x02
+			if (!descMap?.data || descMap.data.size() < 7) {
+                logUnexpectedMessage("parse: Invalid data size for SET_DATA_RESPONSE descMap=${descMap}")
+				return
+			}
+			parseSetDataResponse(descMap)
+			return
+		case ZIGBEE_COMMAND_ACK: // 0x0B
+			if (!descMap?.data || descMap.data.size() < 2) {
+				logUnexpectedMessage("parse: Invalid data size for ACK descMap=${descMap}")
+				return
+			}
+			def ackCommand = zigbee.convertHexToInt(descMap.data.join())
+	        logTrace("parse: ACK command=${ackCommand}")
+			return
+		case ZIGBEE_COMMAND_SET_TIME: // 0x24
+			// Data payload seems to increment every hour but doesn't seem to be an absolute value
+	        logTrace("parse: SET_TIME data=${descMap.data}")
+			return
+		default:
+			logUnexpectedMessage("parse: Unhandled command=${command} descMap=${descMap}")
+			return
+	}
+}
+
 /*
  * Data (sending and receiving) generally have this format:
  * [2 bytes] (packet id)
@@ -212,23 +258,8 @@ def setMode() {
  * [2 bytes] (fnCmd length in bytes)
  * [variable bytes] (fnCmd)
  */
-def parse(String description) {
-	updatePresence(true)
-
-	if (description == null || (!description.startsWith('catchall:') && !description.startsWith('read attr -'))) {
-		logUnexpectedMessage("parse: Unhandled description=${description}")
-		return
-	}
-
-	Map descMap = zigbee.parseDescriptionAsMap(description)
-	if (!descMap?.data || descMap.data.size() < 7
-			|| descMap.clusterInt != CLUSTER_TUYA
-			|| (descMap.command != "01" && descMap.command != "02")) {
-		logUnexpectedMessage("parse: Unhandled map=${descMap}")
-		return
-	}
-	logTrace("parse: map=${descMap}")
-
+def parseSetDataResponse(descMap) {
+	logTrace("parseSetDataResponse: descMap=${descMap}")
 	def data = descMap.data
 	def dp = zigbee.convertHexToInt(data[2])
 	def dataValue = zigbee.convertHexToInt(data[6..-1].join())
@@ -238,22 +269,21 @@ def parse(String description) {
 				case DP_COMMAND_OPEN: // 0x00
 					logDebug("parse: opening")
 					updateWindowShadeOpening()
-					break
+					return
 				case DP_COMMAND_STOP: // 0x01
 					logDebug("parse: stopping")
-					break
+					return
 				case DP_COMMAND_CLOSE: // 0x02
 					logDebug("parse: closing")
 					updateWindowShadeClosing()
-					break
+					return
 				case DP_COMMAND_CONTINUE: // 0x03
 					logDebug("parse: continuing")
-					break
+					return
 				default:
 					logUnexpectedMessage("parse: Unexpected DP_ID_COMMAND dataValue=${dataValue}")
-					break
+					return
 			}
-			break
 		
 		case DP_ID_TARGET_POSITION: // 0x02 Target position
 			if (dataValue >= 0 && dataValue <= 100) {
@@ -263,7 +293,7 @@ def parse(String description) {
 			} else {
 				logUnexpectedMessage("parse: Unexpected DP_ID_TARGET_POSITION dataValue=${dataValue}")
 			}
-			break
+			return
 		
 		case DP_ID_CURRENT_POSITION: // 0x03 Current Position
 			if (dataValue >= 0 && dataValue <= 100) {
@@ -273,7 +303,7 @@ def parse(String description) {
 			} else {
 				logUnexpectedMessage("parse: Unexpected DP_ID_CURRENT_POSITION dataValue=${dataValue}")
 			}
-			break
+			return
 		
 		case DP_ID_DIRECTION: // 0x05 Direction
 			def directionText = DIRECTION_MAP[dataValue]
@@ -283,7 +313,7 @@ def parse(String description) {
 			} else {
 				logUnexpectedMessage("parse: Unexpected DP_ID_DIRECTION dataValue=${dataValue}")
 			}
-			break
+			return
 		
 		case DP_ID_COMMAND_REMOTE: // 0x07 Remote Command
 			if (dataValue == 0) {
@@ -295,7 +325,7 @@ def parse(String description) {
 			} else {
 				logUnexpectedMessage("parse: Unexpected DP_ID_COMMAND_REMOTE dataValue=${dataValue}")
 			}
-			break
+			return
 		
 		case DP_ID_MODE: // 0x65 Mode
 			def modeText = MODE_MAP[dataValue]
@@ -305,7 +335,7 @@ def parse(String description) {
 			} else {
 				logUnexpectedMessage("parse: Unexpected DP_ID_MODE dataValue=${dataValue}")
 			}
-			break
+			return
 		
 		case DP_ID_SPEED: // 0x69 Motor speed
 			if (dataValue >= 0 && dataValue <= 100) {
@@ -314,11 +344,11 @@ def parse(String description) {
 			} else {
 				logUnexpectedMessage("parse: Unexpected DP_ID_SPEED dataValue=${dataValue}")
 			}
-			break
+			return
 		
 		default:
 			logUnexpectedMessage("parse: Unknown DP_ID dp=0x${data[2]}, dataType=0x${data[3]} dataValue=${dataValue}")
-			break
+			return
 	}
 }
 
@@ -439,8 +469,22 @@ def open() {
 	}
 }
 
-def stop() {
-	logDebug("stop")
+def startPositionChange(state) {
+	logDebug("startPositionChange")
+	switch (state) {
+		case "close":
+			close()
+			return
+		case "open":
+			open()
+			return
+		default:
+			throw new Exception("Unsupported startPositionChange state \"${state}\"")
+	}
+}
+
+def stopPositionChange() {
+	logDebug("stopPositionChange")
 	sendTuyaCommand(DP_ID_COMMAND, DP_TYPE_ENUM, DP_COMMAND_STOP, 2)
 }
 
@@ -491,7 +535,7 @@ def push(buttonNumber)		{
 			close()
 			break
 		case 3:
-			stop()
+			stopPositionChange()
 			break
 		case 4:
 			stepOpen()
@@ -522,7 +566,7 @@ private sendTuyaCommand(int dp, int dpType, int fnCmd, int fnCmdLength) {
 				   + zigbee.convertToHexString((fnCmdLength / 2) as int, 4)
 				   + fnCmdHex)
 	logTrace("sendTuyaCommand: message=${message}")
-	zigbee.command(CLUSTER_TUYA, SETDATA, message)
+	zigbee.command(CLUSTER_TUYA, ZIGBEE_COMMAND_SET_DATA, message)
 }
 
 private randomPacketId() {

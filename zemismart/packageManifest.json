@@ -1,10 +1,10 @@
 {
 	"packageName": "Zemismart Zigbee Blind",
 	"author": "Amos Yuen",
-	"version": "2.3.0",
+	"version": "3.0.0",
 	"minimumHEVersion": "0.0",
-	"dateReleased": "2021-06-09",
-	"releaseNotes" : "Add presence attribute to indicate whether device is responsive",
+	"dateReleased": "2021-06-18",
+	"releaseNotes" : "* Support new window shade command startPositionChange()\n* Rename stop() to stopPositionChange()\n* Handle ack and set time zigbee messages",
 	"documentationLink": "https://github.com/amosyuen/hubitat/blob/main/zemismart/README.md",
 	"communityLink": "https://community.hubitat.com/t/release-zemismart-zigbee-blind-driver/67525",
 	"drivers": [

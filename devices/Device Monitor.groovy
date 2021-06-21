@@ -36,6 +36,8 @@ preferences {
 def mainPage() {
 	dynamicPage(name: "mainPage", install: true, uninstall: true) {
 	  	section ("<b>Devices</b>") {
+			input "batteryDevices", "capability.battery", title: "Devices with a battery",
+				multiple: true, required: false, submitOnChange: true
 			input "presenceDevices", "capability.presenceSensor", title: "Devices whose presence marks device status",
 				multiple: true, required: false, submitOnChange: true
 			input "lastActivityDevices", "capability.actuator", title: "Devices with a \"lastActivity\" date attribute",
@@ -48,11 +50,18 @@ def mainPage() {
 			input "waitAfterRefreshSeconds", "number",
 				title: "How many seconds to wait after a refresh before checking the devices",
 				min: 0, defaultValue: 60, required: true
+				
+			if (batteryDevices) {
+				input "batteryThreshold", "number",
+					title: "Notify when battery below threshold",
+					min: 0, max: 100, defaultValue: 5, required: true
+			}
 			if (lastActivityDevices) {
 				input "lastActivityNotifyThresholdSeconds", "number",
 					title: "How many seconds after last activity before notifying",
 					min: 0, defaultValue: 3600, required: true
 			}
+			
 			input "checkNow", "button", title: "Check Now"
 		}
 		section (title: "<b>Notification Methods</b>") {
@@ -87,7 +96,7 @@ def init() {
 	logMsg("info", "init")
 	unschedule()
 	unsubscribe()
-	
+
 	lastActivityDevices.each {
 		if (!it.hasAttribute('lastActivity')) {
 			throw new Exception("Device ${it} does not have lastActivity property")
@@ -143,50 +152,91 @@ def appButtonHandler(buttonPressed) {
 }
 
 /**
- * Event Handlers
- */
-
-def presenceSensorHandler(evt) {
-	logMsg("debug", "presenceSensorHandler: device=${evt.getDevice()} ${evt.name}=${evt.value}")
-	handleNotPresentDevice(evt.getDevice())
-}
-
-/**
  * Logic
  */
 
 def checkAllDevices() {
 	logMsg("info", "checkAllDevices")
-	refreshLastActivityDevices()
-	refreshPresenceDevices()
+
+	def devicesToRefreshMap = [:]
+	addBatteryDevicesToCheck(devicesToRefreshMap)
+	addLastActivityDevicesToCheck(devicesToRefreshMap)
+	addPresenceDevicesToCheck(devicesToRefreshMap)
+	refreshDevices(devicesToRefreshMap.values())
+
+	// Run after delay to give time for refresh to process
+	runIn(waitAfterRefreshSeconds, runCheckAllDevicesAfterRefresh)
+}
+
+def refreshDevices(devices) {
+	logMsg("trace", "refreshDevices: devices=${devices}}")
+	for (device in devices) {
+		if (device.hasCommand('refresh')) {
+			device.refresh()
+		}
+	}
+}
+
+def runCheckAllDevicesAfterRefresh() {
+	logMsg("trace", "runCheckAllDevicesAfterRefresh")
+	checkBatteryDevices()
+	checkLastActivityDevices()
+	checkPresenceDevices()
+}
+
+/**
+ * Battery Devices
+ */
+
+def addBatteryDevicesToCheck(devicesToRefreshMap) {
+	logMsg("trace", "addBatteryDevicesToCheck")
+	batteryDevices.each {
+		if (it.currentBattery <= batteryThreshold + 5) {
+			devicesToRefreshMap[it.deviceNetworkId] = it
+		}
+	}
+	return devices
+}
+
+def checkBatteryDevices() {
+	logMsg("trace", "checkBatteryDevices")
+	def lowBatteryDevices = []
+	batteryDevices.each {
+		if (it.currentBattery <= batteryThreshold) {
+			lowBatteryDevices.add(it)
+		}
+	}
+
+	if (lowBatteryDevices.size() > 0) {
+		logMsg("debug", "checkBatteryDevices: lowBatteryDevices=${lowBatteryDevices}")
+		sendNotification("Low battery devices: ${getDeviceNames(lowBatteryDevices)}")
+	}
 }
 
 /**
  * Last Activity Devices
  */
 
-def refreshLastActivityDevices() {
-	logMsg("trace", "refreshLastActivityDevices")
+def addLastActivityDevicesToCheck(devicesToRefreshMap) {
+	logMsg("trace", "addLastActivityDevicesToCheck")
 	def nowMillis = now()
 	def refreshThresholdMillis = nowMillis
-		- (lastActivityNotifyThresholdSeconds + waitAfterRefreshSeconds) * 1000
+		- (lastActivityNotifyThresholdSeconds + waitAfterRefreshSeconds + 120) * 1000
 	lastActivityDevices.each {
-		def lastActivityMillis = getLastActivity(it)
+		def lastActivityMillis = addLastActivity(it)
 		if (lastActivityMillis <= refreshThresholdMillis) {
-			refreshDeviceIfSupported(it)
+			devicesToRefreshMap[it.deviceNetworkId] = it
 		}
 	}
-
-	runIn(waitAfterRefreshSeconds, checkLastActivityDevices)
 }
 
 def checkLastActivityDevices() {
-	logMsg("trace", "checkLastActivityDevice")
+	logMsg("trace", "checkLastActivityDevices")
 	def nowMillis = now()
 	def exceedThresholdMillis = nowMillis - lastActivityNotifyThresholdSeconds * 1000
 	def exceededActivityDevices = []
 	lastActivityDevices.each {
-		def lastActivityMillis = getLastActivity(it)
+		def lastActivityMillis = addLastActivity(it)
 		if (lastActivityMillis <= exceedThresholdMillis) {
 			exceededActivityDevices.add(it)
 		}
@@ -198,7 +248,7 @@ def checkLastActivityDevices() {
 	}
 }
 
-def getLastActivity(device) {
+def addLastActivity(device) {
 	return new Date(device.currentLastActivity).getTime()
 }
 
@@ -206,15 +256,13 @@ def getLastActivity(device) {
  * Presence Devices
  */
 
-def refreshPresenceDevices() {
-	logMsg("trace", "refreshPresenceDevices")
+def addPresenceDevicesToCheck(devicesToRefreshMap) {
+	logMsg("trace", "addPresenceDevicesToCheck")
 	presenceDevices.each {
 		if (it.currentPresence == "not present") {
-			refreshDeviceIfSupported(it)
+			devicesToRefreshMap[it.deviceNetworkId] = it
 		}
 	}
-
-	runIn(waitAfterRefreshSeconds, checkPresenceDevices)
 }
 
 def checkPresenceDevices() {
@@ -236,17 +284,8 @@ def checkPresenceDevices() {
  * Helpers
  */
 
-def refreshDeviceIfSupported(device) {
-	logMsg("trace", "refreshDeviceIfSupported: device=$device")
-	if (device.hasCommand('refresh')) {
-		device.refresh()
-		return true
-	}
-	return true
-}
-
 def getDeviceNames(devices) {
-	logMsg("trace", "getDeviceNames: devices=$devices")
+	logMsg("trace", "getDeviceNames: devices=${devices}")
 	def deviceNames = []
 	devices.each {
 		deviceNames.add("${it}")
@@ -256,7 +295,7 @@ def getDeviceNames(devices) {
 }
 
 def sendNotification(msg) {
-	logMsg("debug", "sendNotification: msg=$msg")
+	logMsg("debug", "sendNotification: msg=${msg}")
 	if (pushNotificationDevices) {
 		pushNotificationDevices*.deviceNotification(msg)
 	}

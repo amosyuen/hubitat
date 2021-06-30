@@ -40,11 +40,12 @@ def mainPage() {
 			label title: "Assign a name"
 		}
 	  	section ("<b>Options</b>") {
-			input "motionSensors", "capability.motionSensor", title: "Motion Sensors", multiple: true, required: true
+			input "motionSensors", "capability.motionSensor", title: "Motion Sensors", repeated: true, required: true
 			input "numberOfMotionEvents", "number", title: "Number of motion events within window required to trigger active", min: 1, defaultValue: 2, required: true
 			input "windowSeconds", "number", title: "Window in seconds", min: 1, required: true
 		}
 		section("<b>Debug</b>") {
+			input "traceLog", "bool", title: "Log trace statements", defaultValue: false, submitOnChange: true
 			input "debugLog", "bool", title: "Log debug statements", defaultValue: false, submitOnChange: true
 		} 
 		section {
@@ -117,12 +118,12 @@ def updateEvents(newEventMillis = null) {
 	}
 	atomicState.eventsPop = eventsPop
 	atomicState.eventsPush = eventsPush
-    log.trace("updateEvents: eventsPop=${eventsPop}")
-    log.trace("updateEvents: eventsPush=${eventsPush}")
+    logTrace("updateEvents: eventsPop=${eventsPop}")
+    logTrace("updateEvents: eventsPush=${eventsPush}")
 
     int index = (eventsPop.size() + eventsPush.size() - numberOfMotionEvents) as int
     boolean active = index >= 0
-    log.debug("updateEvents: active=${active}")
+    logDebug("updateEvents: active=${active}")
 	String value = active ? "active" : "inactive"
 	def child = getChildDevice(getChildId())
 	child?.sendEvent(name: "motion", value: value, displayed: true)
@@ -133,7 +134,7 @@ def updateEvents(newEventMillis = null) {
                 : eventsPush[index - eventsPop.size()]
         def waitMillis = millis + windowSeconds * 1000 - nowMillis
         runInMillis(waitMillis, updateEvents)
-        log.debug("updateEvents: run update in ${waitMillis} millis")
+        logDebug("updateEvents: run update in ${waitMillis} millis")
     }
 }
 
@@ -171,5 +172,11 @@ def componentRefresh(componentDevice) {
 def logDebug(msg){
 	if (debugLog == true) {
 		log.debug msg
+	}
+}
+
+def logTrace(msg){
+	if (traceLog == true) {
+		log.trace msg
 	}
 }

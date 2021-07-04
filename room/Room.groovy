@@ -114,6 +114,9 @@ def pageDevices() {
 				}
 			}
 		}
+		section("Presence Sensors") {
+			input "presenceSensors", "capability.presenceSensor", title: "Presence sensors", multiple: true, required: false
+		}
 		section("Light Sensors") {
 			input "lightSensors", "capability.illuminanceMeasurement", title: "Light sensors", required: false, multiple: true, submitOnChange: true
 		}
@@ -145,8 +148,8 @@ def pageOccupied() {
 		}
 		section ("Turn On Lights Conditions") {
 			if (lightSensors) {
-				input "occupiedLuxThresholdOn", "number", title: "Light Turn On Lux threshold", required: false, range: "1..*", defaultValue: 2000
-				input "occupiedLuxThresholdOff", "number", title: "Light Turn Off Lux threshold", required: false, range: "1..*", defaultValue: 2250
+				input "occupiedLuxThresholdOn", "number", title: "Light Turn On Lux threshold", required: false, range: "1..*", defaultValue: 1750
+				input "occupiedLuxThresholdOff", "number", title: "Light Turn Off Lux threshold", required: false, range: "1..*", defaultValue: 2000
 			}
 		}
 		section("Cancel Triggers") {
@@ -309,6 +312,7 @@ def init() {
 	if (preventStateChangeIfNoMovementAtExits) {
 		subscribe(exitMotionSensors, "motion.active", exitMotionSensorHandler)
 	}
+	subscribe(presenceSensors, "presence", presenceSensorHandler)
 
 	subscribe(occupiedLightSwitches, "switch.on", occupiedLightOnHandler)
 	subscribe(occupiedLightSwitches, "switch.off", occupiedLightOffHandler)
@@ -601,17 +605,7 @@ def contactSensorOpen() {
 def motionSensorHandler(evt) {
 	logDebug("motionSensorHandler ${evt.getDevice()} ${evt.name}=${evt.value}")
 	if (evt.value == "active") {
-		def nobodyHasExited = preventStateChangeIfNoMovementAtExits &&
-				(!contactSensors || !contactSensors.currentContact.contains("open")) &&
-				(!contactSensorsOpen || !contactSensorsOpen.currentContact.contains("open")) &&
-				(!exitMotionSensors || !exitMotionSensors.currentMotion.contains("active")) &&
-				!atomicState.nobodyHasExited
-		if (nobodyHasExited) {
-			logInfo("motionSensorHandler: Preventing state change because there was motion " +
-					"inside room while contacts were closed and exits had no motion")
-			atomicState.nobodyHasExited = true
-			updateChildNobodyHasExited(true)
-		}
+		maybeMarkNobodyHasExited()
 		switch (atomicState.occupancy) {
 			case "checking":
 			case "vacant":
@@ -631,6 +625,20 @@ def motionSensorHandler(evt) {
 	}
 }
 
+def maybeMarkNobodyHasExited() {
+	def nobodyHasExited = preventStateChangeIfNoMovementAtExits &&
+			(!contactSensors || !contactSensors.currentContact.contains("open")) &&
+			(!contactSensorsOpen || !contactSensorsOpen.currentContact.contains("open")) &&
+			(!exitMotionSensors || !exitMotionSensors.currentMotion.contains("active")) &&
+			!atomicState.nobodyHasExited
+	if (nobodyHasExited) {
+		logInfo("maybeMarkNobodyHasExited: Preventing state change because there was activity " +
+				"inside room while contacts were closed and exits had no motion")
+		atomicState.nobodyHasExited = true
+		updateChildNobodyHasExited(true)
+	}
+}
+
 def exitMotionSensorHandler(evt) {
 	logDebug("exitMotionSensorHandler ${evt.getDevice()} ${evt.name}=${evt.value}")
 	if (atomicState.nobodyHasExited) {
@@ -638,6 +646,22 @@ def exitMotionSensorHandler(evt) {
 		updateChildNobodyHasExited(false)
 		updateChildTimeout()
 		runDelayEvaluateState()
+	}
+}
+
+def presenceSensorHandler(evt) {
+	logDebug("presenceSensorHandler ${evt.getDevice()} ${evt.name}=${evt.value}")
+	if (evt.value == "present") {
+		switch (atomicState.occupancy) {
+			case "checking":
+			case "vacant":
+				setOccupancyTrigger("occupied", "presence", /* updateLights= */ true)
+				break
+			default:
+				setTrigger("presence")
+				runDelayEvaluateState()
+				break
+		}
 	}
 }
 
@@ -742,6 +766,7 @@ def setStateIfUserChange(newOccupancy, value, evt, isUserChangeFn, source) {
         }
     }
     if (userChange) {
+		maybeMarkNobodyHasExited()
         setOccupancyTrigger(newOccupancy, source)
     }
 }
@@ -978,6 +1003,10 @@ def checkVacantConditions() {
 	// contactSensorsOpen should not prevent state transition
 	if (motionSensors && motionSensors.currentMotion.contains("active")) {
 		logDebug("checkVacantConditions: motion is detected")
+		return false
+	}
+	if (presenceSensors && presenceSensors.currentPresence.contains("present")) {
+		logDebug("checkVacantConditions: presence is detected")
 		return false
 	}
 	logDebug("checkVacantConditions: true")

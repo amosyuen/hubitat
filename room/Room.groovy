@@ -289,8 +289,6 @@ def init() {
 		updateOccupancy("vacant")
 	}
 	
-	updateChildContact()
-	updateChildMotion()
 	updateChildNobodyHasExited()
 	updateChildLight()
 	updateChildNightLight()
@@ -382,36 +380,6 @@ def getChildEngagedSwitch() {
 
 def getChildEngagedSwitchId() {
 	return "room_${app.id}_engaged_switch"
-}
-
-def updateChildContact(open = null)	{
-	def child = getChild()
-	if (!child) {
-		return;
-	}
-	
-	if (open == null) {
-		open = motionSensors && motionSensors.currentMotion.contains('open')
-	}
-
-	def value = open ? 'open' : 'closed'
-	logDebug("updateChildContact: $value")
-	child.sendEvent(name: "contact", value: value, descriptionText: "contact is ${value}", displayed: true)
-}
-
-def updateChildMotion(motion = null)	{
-	def child = getChild()
-	if (!child) {
-		return;
-	}
-	
-	if (motion == null) {
-		motion = motionSensors && motionSensors.currentMotion.contains('active')
-	}
-
-	def value = motion ? 'active' : 'inactive'
-	logDebug("updateChildMotion: $value")
-	child.sendEvent(name: "motion", value: value, descriptionText: "motion is ${value}", displayed: true)
 }
 
 def updateChildNobodyHasExited(nobodyHasExited = null) {
@@ -566,7 +534,6 @@ def contactSensorHandler(evt) {
 		contactSensorOpen()
 	} else if (evt.value == "closed") {
 		setTrigger("contact")
-		updateChildContact()
 		runDelayEvaluateState()
 	}
 }
@@ -576,8 +543,6 @@ def contactSensorOpenHandler(evt) {
 	logDebug("contactSensorOpenHandler: ${evt.getDevice()} ${evt.name}=${evt.value}")
 	if (evt.value == "open") {
 		contactSensorOpen()
-	} else if (evt.value == "closed") {
-		updateChildContact()
 	}
 }
 
@@ -599,7 +564,6 @@ def contactSensorOpen() {
 			}
 			break
 	}
-	updateChildContact(true)
 }
 
 def motionSensorHandler(evt) {
@@ -618,9 +582,7 @@ def motionSensorHandler(evt) {
 				}
 				break
 		}
-		updateChildMotion(true)
 	} else if (evt.value == "inactive") {
-		updateChildMotion()
 		runDelayEvaluateState()
 	}
 }

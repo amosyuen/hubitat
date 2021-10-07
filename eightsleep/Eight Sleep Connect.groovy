@@ -11,6 +11,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY 
+ *	4.0.1 (2021-10-07) [Amos Yuen] - Set longer timeout for HTTP calls
  *	3.0.2 (2021-04-13) [Amos Yuen] - Fix bug passing logging closure
  *	3.0.1 (2021-03-26) [Amos Yuen] - Fix logging issues in closures
  *	3.0.0 (2021-01-22) [Amos Yuen] - Remove heatLevelReached and notifications
@@ -295,7 +296,8 @@ private def makeHttpCall(methodFn, path, body = [:], refreshToken = true) {
 			uri: "${apiUrl()}${path}",
 			body: body,
 			contentType: "application/json",
-			headers: headers
+			headers: headers,
+            timeout: 30,
 		]) { response = it }
 	} catch (groovyx.net.http.HttpResponseException e) {
 		logMsg("error", "makeHttpCall: HttpResponseException status=${e.statusCode}, body=${e.getResponse().getData()}")

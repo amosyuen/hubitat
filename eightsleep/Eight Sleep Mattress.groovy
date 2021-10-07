@@ -11,6 +11,9 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
+ *	4.0.1 (2021-10-07) [Amos Yuen]
+ *          - Set longer timeout for HTTP calls
+ *          - Handle repsonses without any features
  *	4.0.0 (2021-06-13) [Amos Yuen] - Change only supported thermostat mode to auto instead of heat/cool. Support bed on with targetHeatingLevel 0.
  *	3.0.2 (2021-04-13) [Amos Yuen] - Fix big passing logging closure
  *	3.0.1 (2021-03-26) [Amos Yuen] - Fix logging issues in closures
@@ -426,7 +429,9 @@ def updateFromBedResult(result) {
 	def dateFormat = getLocalDateFormat("EEE, d MMM yyyy HH:mm:ss")
 	sendEvent(name: "lastUpdated", value: dateFormat.format(parent.parseIsoTime(result.lastHeard)), displayed: false )
 
-	state.supportsCooling = result.features.contains("cooling")
+    if (result.features) {
+	    state.supportsCooling = result.features.contains("cooling")
+    }
 	def nowHeating = result["${state.bedSide}NowHeating"]
 	sendEvent(name: "switch", value: nowHeating ? "on" : "off", displayed: true)
 	def targetHeatLevel = result["${state.bedSide}TargetHeatingLevel"] as Integer
@@ -601,6 +606,7 @@ def makeHttpCall(methodFn, path, body = [:]) {
 			body: body,
 			contentType: "application/json",
 			headers: headers,
+            timeout: 30,
 		]) { response = it }
 	}
 	
@@ -637,6 +643,7 @@ def asyncApiGET(callbackFn, path, headers, query = [:]) {
 				uri: "${parent.apiUrl()}${path}",
 				query: query,
 				headers: headers,
+                timeout: 30,
 			]
 		)
 	}

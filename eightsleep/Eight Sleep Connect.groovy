@@ -11,6 +11,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY 
+ *	4.0.2 (2021-10-14) [Amos Yuen] Fix bug in logging http errors
  *	4.0.1 (2021-10-07) [Amos Yuen] - Set longer timeout for HTTP calls
  *	3.0.2 (2021-04-13) [Amos Yuen] - Fix bug passing logging closure
  *	3.0.1 (2021-03-26) [Amos Yuen] - Fix logging issues in closures
@@ -34,7 +35,7 @@ import groovy.transform.Field
 @Field final Integer MAX_ACCESS_TOKEN_RENEW_ATTEMPTS = 3
 
 private def textVersion() {
-	return "Version: 3.0.2 (2021-04-13)"
+	return "Version: 4.0.2 (2021-10-14)"
 }
 
 private def textCopyright() {
@@ -308,7 +309,7 @@ private def makeHttpCall(methodFn, path, body = [:], refreshToken = true) {
 		}
 		throw e
 	} catch (java.net.SocketTimeoutException e) {
-		logMsg("warn", "makeHttpCall: Connection timed out", e)
+		logMsg("warn", "makeHttpCall: Connection timed out")
 		throw e
 	}
 	

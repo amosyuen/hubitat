@@ -11,6 +11,7 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
+ *	4.0.2 (2021-10-14) [Amos Yuen] Fix bug in logging http errors
  *	4.0.1 (2021-10-07) [Amos Yuen]
  *          - Set longer timeout for HTTP calls
  *          - Handle repsonses without any features
@@ -73,7 +74,7 @@
 import groovy.transform.Field
 
 private def textVersion() {
-	 def text = "Version: 4.0.0 (2021-06-13)"
+	 def text = "Version: 4.0.2 (2021-10-14)"
 }
 
 private def textCopyright() {
@@ -623,14 +624,14 @@ def handleHttpErrors(Closure callback) {
 	try {
 		callback()
 	} catch (groovyx.net.http.HttpResponseException e) {
-		logMsg("error", "makeHttpCall: HttpResponseException status=${e.statusCode}, body=${e.getResponse().getData()}", e)
+		logMsg("error", "makeHttpCall: HttpResponseException status=${e.statusCode}, body=${e.getResponse().getData()}")
 		if (e.statusCode == 401) {
 			// OAuth token is expired
 			state.remove("eightSleepAccessToken")
 			logMsg("warn", "makeHttpCall: Access token is not valid")
 		}
 	} catch (java.net.SocketTimeoutException e) {
-		logMsg("warn", "makeHttpCall: Connection timed out", e)
+        logMsg("warn", "makeHttpCall: Connection timed out")
 	}
 }
 

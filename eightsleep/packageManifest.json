@@ -1,10 +1,10 @@
 {
 	"packageName": "Eight Sleep (Connect)",
 	"author": "Amos Yuen",
-	"version": "4.0.1",
+	"version": "4.0.2",
 	"minimumHEVersion": "0.0",
 	"dateReleased": "2021-10-07",
-	"releaseNotes" : "Set longer timeout for http calls",
+	"releaseNotes": "Fix bug with error logging for http calls",
 	"documentationLink": "https://github.com/amosyuen/hubitat/blob/main/eightsleep/README.md",
 	"communityLink": "https://community.hubitat.com/t/release-eight-sleep-community/60913/18",
 	"apps": [
@@ -16,7 +16,7 @@
 			"required": true,
 			"oauth": false,
 			"primary": true,
-			"version": "4.0.1"
+			"version": "4.0.2"
 		}
 	],
 	"drivers": [
@@ -26,7 +26,7 @@
 			"namespace": "amosyuen",
 			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/eightsleep/Eight%20Sleep%20Mattress.groovy",
 			"required": true,
-			"version": "4.0.1"
+			"version": "4.0.2"
 		}
 	]
 }

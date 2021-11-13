@@ -385,7 +385,7 @@ def poll() {
 }
 
 def refresh() {
-	logMsg("info", "refresh")
+	logMsg("debug", "refresh")
 	
     def headers = parent.apiRequestHeaders(logMsg)
 	if (!headers) {

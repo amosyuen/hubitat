@@ -11,6 +11,7 @@
  *	for the specific language governing permissions and limitations under the License.
  *
  *	VERSION HISTORY
+ *	4.0.3 (2021-11-12) [Amos Yuen] Downgrade refresh message to debug
  *	4.0.2 (2021-10-14) [Amos Yuen] Fix bug in logging http errors
  *	4.0.1 (2021-10-07) [Amos Yuen]
  *          - Set longer timeout for HTTP calls
@@ -385,7 +386,7 @@ def poll() {
 }
 
 def refresh() {
-	logMsg("info", "refresh")
+	logMsg("debug", "refresh")
 	
     def headers = parent.apiRequestHeaders(logMsg)
 	if (!headers) {

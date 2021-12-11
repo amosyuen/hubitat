@@ -27,16 +27,6 @@
 			]
 		},
 		{
-			"name": "Eufy Security (Alpha)",
-			"category": "Integrations",
-			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/eufysecurity/packageManifest.json",
-			"description": "Connect your Eufy Security Devices",
-			"tags": [
-				"Alarm Systems",
-				"Safety & Security"
-			]
-		},
-		{
 			"name": "Motion in Window",
 			"category": "Convenience",
 			"location": "https://raw.githubusercontent.com/amosyuen/hubitat/main/motion/packageManifest.json",

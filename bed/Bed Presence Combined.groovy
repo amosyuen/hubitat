@@ -98,7 +98,7 @@ def init() {
 }
 
 def uninstalled() {
-	log.info("uninstalled")
+	log.info("uninstalled successfully")
 	unschedule()
 	getChildDevices().each {
 		deleteChildDevice(it.deviceNetworkId)

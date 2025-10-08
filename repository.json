@@ -36,7 +36,7 @@
 		{
 			"name": "Zemismart Zigbee Blind",
 			"category": "Control",
-			"location": "https://raw.githubusercontent.com/amosyuen/hubitat-zemismart-zigbee/main/packageManifest.json",
+			"location": "https://raw.githubusercontent.com/HubitatCommunity/zemismart-zigbee-blind/refs/heads/main/packageManifest.json",
 			"description": "Zemismart zigbee blind device driver",
 			"tags": ["Window Coverings", "Zigbee"]
 		}
